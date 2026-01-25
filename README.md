@@ -2,7 +2,7 @@
 # PROJECT NAME
 # Group information
 * Student 1. Tuukka Palovaara, t6patu01@student.oulu.fi
-* Student 2. Name and email
+* Student 2. Shane Dalumura Hettige, sdalumur25@student.oulu.fi
 * Student 3. Name and email
 * Student 4. Name and email
 
