@@ -3,7 +3,7 @@
 # Group information
 * Student 1. Tuukka Palovaara, t6patu01@student.oulu.fi
 * Student 2. Shane Dalumura Hettige, sdalumur25@student.oulu.fi
-* Student 3. Name and email
+* Student 3. Can Baturlar, cbaturla25@student.oulu.fi
 * Student 4. Name and email
 
 
