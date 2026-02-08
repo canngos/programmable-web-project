@@ -53,7 +53,7 @@ COMMENT ON COLUMN "flights"."status" IS 'scheduled, delayed, cancelled';
 
 COMMENT ON COLUMN "bookings"."status" IS 'RESERVED, CONFIRMED, CANCELLED';
 
-COMMENT ON COLUMN "tickets"."class" IS 'Economy, Business';
+COMMENT ON COLUMN "tickets"."class" IS 'Economy, Business, First';
 
 ALTER TABLE "bookings" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id");
 
