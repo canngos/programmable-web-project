@@ -5,7 +5,7 @@ services:
     ports:
       - "5432:5432"
     env_file:
-      - .env.production
+      - .env
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -27,7 +27,7 @@ services:
     ports:
       - "5000:5000"
     env_file:
-      - .env.production
+      - .env
     environment:
       - FLASK_APP=app.py
       - FLASK_ENV=production
