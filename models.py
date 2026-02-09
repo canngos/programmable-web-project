@@ -17,7 +17,7 @@ class User(db.Model):
     firstname = db.Column(db.String(30), nullable=False)
     lastname = db.Column(db.String(30), nullable=False)
     email = db.Column(db.String(30), nullable=False, unique=True)
-    password_hash = db.Column(db.String(100), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(Enum(Roles), nullable=False, default=Roles.user)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
