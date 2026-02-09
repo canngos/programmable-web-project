@@ -81,6 +81,30 @@ flask db migrate -m "Initial migration"
 flask db upgrade
 ```
 
+From second migration onwards:
+```bash
+# Make sure the database container is running 
+docker-compose up -d postgres
+
+# Set environment variables (Windows)
+set FLASK_APP=app.py
+set DATABASE_URL=postgresql://flask_user:flask_password@localhost:5432/flask_db
+
+# Set environment variables (Linux/Mac)
+export FLASK_APP=app.py
+export DATABASE_URL=postgresql://flask_user:flask_password@localhost:5432/flask_db
+
+# Make sure the database is up-to-date
+flask db upgrade
+
+# Create the new database migration file
+flask db migrate -m "New migration"
+
+# Upgrade the database to run the new migration
+flask db upgrade
+
+```
+
 ### 5. Start the Application
 ```bash
 # Start all services (Flask app + PostgreSQL)

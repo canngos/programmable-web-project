@@ -1,56 +1,47 @@
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: flask_postgres
-    restart: unless-stopped
+    restart: always
+    ports:
+      - "5432:5432"
     env_file:
-      - .env
+      - .env.production
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - flask_network
+      - backend
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   flask-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: flask_app
-    restart: unless-stopped
+    build: .
+    restart: always
     ports:
       - "5000:5000"
     env_file:
-      - .env
+      - .env.production
     environment:
       - FLASK_APP=app.py
-      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-    volumes:
-      - ./migrations:/app/migrations
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - flask_network
-    command: >
-      sh -c "
-      flask db upgrade &&
-      gunicorn --bind 0.0.0.0:5000 --workers 2 --threads 4 --access-logfile - app:app
-      "
+      - backend
+    # No volumes in production - code is in image
 
 volumes:
   postgres_data:
 
 networks:
-  flask_network:
+  backend:
     driver: bridge

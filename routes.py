@@ -16,7 +16,7 @@ def index():
     })
 
 @main_bp.route('/users/', methods=['GET', 'POST'])
-def sensors():
+def users():
     if request.method == 'POST':
         data = request.json
         user = User(
@@ -37,7 +37,7 @@ def sensors():
         'firstname': s.firstname,
         'lastname': s.lastname,
         'email': s.email,
-        'role' : s.role,
+        'role' : s.role.name,
         'created_at' : s.created_at
     } for s in users])
 
