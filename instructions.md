@@ -21,7 +21,11 @@ git --version
 # Run the setup script (if available)
 ./setup.sh
 
-# Or manually follow the steps below
+# Or manually follow the steps below:
+# 1. Create .env file from template
+# 2. Start services: docker-compose up -d
+# 3. Apply migrations: flask db upgrade
+# 4. Populate database: python populate_db.py
 ```
 
 ## 🔧 Manual Setup
@@ -100,13 +104,44 @@ docker-compose exec postgres psql -U flask_user -d flask_db -c "\dt"
 # Should show: alembic_version, users, bookings
 ```
 
+### 7. Populate Database with Sample Data (Optional but Recommended)
+```bash
+# Run the population script to create sample data
+python populate_db.py
+
+# This will create:
+# - 6 users (1 admin + 5 regular users)
+# - ~50 flights (spread over next 30 days)
+# - ~15-20 bookings with various statuses
+# - ~30-50 tickets with different seat classes
+```
+
+**⚠️ Warning:** The `populate_db.py` script will **DELETE all existing data** before creating new data. Only use this for development/testing!
+
+**Test Credentials After Population:**
+- Admin: `admin@flightsystem.com` / `admin123`
+- User: `john.doe@example.com` / `password123`
+
+**Verify the populated data:**
+```bash
+# Check record counts
+docker-compose exec postgres psql -U flask_user -d flask_db -c "
+SELECT 
+    (SELECT COUNT(*) FROM users) as users,
+    (SELECT COUNT(*) FROM flights) as flights,
+    (SELECT COUNT(*) FROM bookings) as bookings,
+    (SELECT COUNT(*) FROM tickets) as tickets;
+"
+```
+
 ## 📁 Project Structure
 
 ```
 .
 ├── app.py              # Main Flask application
-├── models.py           # Database models (User, Booking)
+├── models.py           # Database models (User, Flight, Booking, Ticket)
 ├── routes.py           # API routes and endpoints
+├── populate_db.py      # Database population script with sample data
 ├── Dockerfile          # Flask app container definition
 ├── docker-compose.yml  # Multi-container setup
 ├── requirements.txt    # Python dependencies
@@ -119,6 +154,78 @@ docker-compose exec postgres psql -U flask_user -d flask_db -c "\dt"
 ```
 
 ## 🗄️ Database Management
+
+### Populating Database with Sample Data
+
+The `populate_db.py` script creates realistic sample data for development and testing:
+
+```bash
+# Activate virtual environment (if not using Docker)
+# Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+
+# Linux/Mac:
+source .venv/bin/activate
+
+# Run the population script
+python populate_db.py
+```
+
+**What gets created:**
+- **6 Users**: 1 admin account + 5 regular users
+- **~50 Flights**: Random routes between major US airports over next 30 days
+- **~15-20 Bookings**: Distributed across users with realistic statuses
+- **~30-50 Tickets**: Various seat classes (economy, business, first) with proper pricing
+
+**Test Credentials:**
+```
+Admin Account:
+  Email: admin@flightsystem.com
+  Password: admin123
+
+Regular User:
+  Email: john.doe@example.com
+  Password: password123
+  
+Other users: jane.smith@example.com, mike.johnson@example.com (all use password123)
+```
+
+**⚠️ Important Notes:**
+- The script **deletes all existing data** before populating
+- Only use for development/testing environments
+- For production, use proper data seeding strategies
+
+**Troubleshooting populate_db.py:**
+```bash
+# If you get "could not translate host name 'postgres'"
+# Make sure DATABASE_URL in .env uses 'localhost' not 'postgres':
+DATABASE_URL=postgresql://flask_user:flask_password@localhost:5432/flask_db
+
+# If you get "psycopg2 not found"
+pip install psycopg2-binary
+
+# If you get "password_hash too long" error
+# Apply the migration to increase column length:
+flask db upgrade
+```
+
+**Verify populated data:**
+```bash
+# Check counts
+docker-compose exec postgres psql -U flask_user -d flask_db -c "
+SELECT 
+    (SELECT COUNT(*) FROM users) as users,
+    (SELECT COUNT(*) FROM flights) as flights,
+    (SELECT COUNT(*) FROM bookings) as bookings,
+    (SELECT COUNT(*) FROM tickets) as tickets;
+"
+
+# View sample data
+docker-compose exec postgres psql -U flask_user -d flask_db -c "
+SELECT firstname, email, role FROM users LIMIT 5;
+SELECT flight_code, origin_airport, destination_airport FROM flights LIMIT 5;
+"
+```
 
 ### Common Database Commands
 ```bash
