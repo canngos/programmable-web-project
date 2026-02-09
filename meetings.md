@@ -1,15 +1,19 @@
 # Meetings minutes
 
 ## Meeting 1.
-* **DATE:**
-* **PARTICIPANTS:**
-* **TEACHER:**
+* **DATE: 06.02.2026**
+* **PARTICIPANTS:Shane Dalumura Hettige, Can Baturlar, Tuukka Palovaara**
+* **TEACHER:Mika Oja**
 
 ### Action points
-*List here the actions points discussed with assistants*
+- Scope of the project
+- AI disclaimer requirement
+- Deliverables and timeline of the project
 
 ### Notes
-*Add here notes that you consider important. This is not mandatory*
+- The original scope was reduced significantly, as original scope of the project was deemed too broad for this project
+- Only a select few tables were chosen to be implemented in this database implementation stage 
+- Functionality of the API was limited only to Ticketing aspect
 
 
 ## Meeting 2.
