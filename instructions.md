@@ -103,6 +103,12 @@ flask db migrate -m "New migration"
 # Upgrade the database to run the new migration
 flask db upgrade
 
+# run the docker compose command to make sure the new migration file is copied to the flask app container
+docker compose build 
+
+# Finally, run the flask app 
+doocker compose up -d
+
 ```
 
 ### 5. Start the Application
