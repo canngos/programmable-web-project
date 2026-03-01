@@ -1,0 +1,24 @@
+tags:
+  - Flights
+security:
+  - Bearer: []
+responses:
+  200:
+    description: List of distinct airports available in the system
+    schema:
+      type: object
+      properties:
+        airports:
+          type: array
+          items:
+            type: string
+          example:
+            - "ATL - Hartsfield-Jackson Atlanta International"
+            - "DFW - Dallas/Fort Worth International"
+            - "JFK - John F Kennedy International"
+            - "LAX - Los Angeles International"
+            - "ORD - O'Hare International"
+        count:
+          type: integer
+          description: Total number of distinct airports
+          example: 5

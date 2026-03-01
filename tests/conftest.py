@@ -156,3 +156,94 @@ def multiple_users(app):
             if user:
                 db.session.delete(user)
         db.session.commit()
+
+
+@pytest.fixture(scope='function')
+def sample_flights(app):
+    """Create sample flights for testing."""
+    with app.app_context():
+        from models import Flight, FlightStatus
+        from decimal import Decimal
+        from datetime import datetime
+
+        flights = []
+
+        # Create a few sample flights
+        flight1 = Flight(
+            flight_code='AA101',
+            origin_airport='JFK - John F Kennedy International',
+            destination_airport='LAX - Los Angeles International',
+            departure_time=datetime(2026, 3, 15, 10, 0),
+            arrival_time=datetime(2026, 3, 15, 14, 0),
+            base_price=Decimal('299.99'),
+            status=FlightStatus.active
+        )
+
+        flight2 = Flight(
+            flight_code='UA202',
+            origin_airport='ORD - O\'Hare International',
+            destination_airport='SFO - San Francisco International',
+            departure_time=datetime(2026, 3, 16, 12, 0),
+            arrival_time=datetime(2026, 3, 16, 15, 30),
+            base_price=Decimal('249.99'),
+            status=FlightStatus.active
+        )
+
+        flights.extend([flight1, flight2])
+
+        for flight in flights:
+            db.session.add(flight)
+
+        db.session.commit()
+
+        # Get IDs
+        flight_ids = [f.id for f in flights]
+
+        yield flights
+
+        # Cleanup
+        for flight_id in flight_ids:
+            flight = db.session.get(Flight, flight_id)
+            if flight:
+                db.session.delete(flight)
+        db.session.commit()
+
+
+@pytest.fixture(scope='function')
+def multiple_flights(app):
+    """Create multiple flights for pagination testing."""
+    with app.app_context():
+        from models import Flight, FlightStatus
+        from decimal import Decimal
+        from datetime import datetime, timedelta
+
+        flights = []
+        base_date = datetime(2026, 3, 15)
+
+        for i in range(10):
+            flight = Flight(
+                flight_code=f'FL{i+100}',
+                origin_airport=f'Airport_{i % 3}',
+                destination_airport=f'Airport_{(i+1) % 3}',
+                departure_time=base_date + timedelta(days=i),
+                arrival_time=base_date + timedelta(days=i, hours=4),
+                base_price=Decimal(f'{200 + i * 10}.99'),
+                status=FlightStatus.active
+            )
+            flights.append(flight)
+            db.session.add(flight)
+
+        db.session.commit()
+
+        # Get IDs
+        flight_ids = [f.id for f in flights]
+
+        yield flights
+
+        # Cleanup
+        for flight_id in flight_ids:
+            flight = db.session.get(Flight, flight_id)
+            if flight:
+                db.session.delete(flight)
+        db.session.commit()
+

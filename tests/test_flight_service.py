@@ -1,0 +1,555 @@
+"""
+Unit tests for FlightService class.
+Tests all business logic methods in the flight service layer.
+"""
+
+from datetime import datetime, timedelta
+from extensions import db
+from models import Flight, FlightStatus
+from services.flight_service import FlightService
+from decimal import Decimal
+
+
+class TestFlightServiceAirports:
+    """Test get_available_airports method."""
+
+    def test_get_available_airports_empty_database(self, app):
+        """Test getting airports when no flights exist."""
+        with app.app_context():
+            result = FlightService.get_available_airports()
+
+            assert 'airports' in result
+            assert 'count' in result
+            assert result['count'] == 0
+            assert result['airports'] == []
+
+    def test_get_available_airports_with_flights(self, app, sample_flights):
+        """Test getting airports with flights in database."""
+        with app.app_context():
+            result = FlightService.get_available_airports()
+
+            assert result['count'] > 0
+            assert isinstance(result['airports'], list)
+            assert len(result['airports']) == result['count']
+
+    def test_get_available_airports_distinct(self, app):
+        """Test that airports are unique (no duplicates)."""
+        with app.app_context():
+            # Create flights with same airports
+            flight1 = Flight(
+                flight_code='AA101',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            flight2 = Flight(
+                flight_code='AA102',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 16, 10, 0),
+                arrival_time=datetime(2026, 3, 16, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight1)
+            db.session.add(flight2)
+            db.session.commit()
+
+            result = FlightService.get_available_airports()
+
+            # Should only have 2 unique airports (JFK and LAX)
+            assert result['count'] == 2
+            assert 'JFK' in result['airports']
+            assert 'LAX' in result['airports']
+
+            # Cleanup
+            db.session.delete(flight1)
+            db.session.delete(flight2)
+            db.session.commit()
+
+    def test_get_available_airports_sorted(self, app):
+        """Test that airports are sorted alphabetically."""
+        with app.app_context():
+            # Create flights with different airports
+            flight1 = Flight(
+                flight_code='AA101',
+                origin_airport='ORD',
+                destination_airport='ATL',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('199.99'),
+                status=FlightStatus.active
+            )
+            flight2 = Flight(
+                flight_code='AA102',
+                origin_airport='LAX',
+                destination_airport='JFK',
+                departure_time=datetime(2026, 3, 16, 10, 0),
+                arrival_time=datetime(2026, 3, 16, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight1)
+            db.session.add(flight2)
+            db.session.commit()
+
+            result = FlightService.get_available_airports()
+
+            # Check if sorted (ATL, JFK, LAX, ORD)
+            assert result['airports'] == sorted(result['airports'])
+
+            # Cleanup
+            db.session.delete(flight1)
+            db.session.delete(flight2)
+            db.session.commit()
+
+    def test_get_available_airports_origin_and_destination(self, app):
+        """Test that both origin and destination airports are included."""
+        with app.app_context():
+            flight = Flight(
+                flight_code='AA101',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight)
+            db.session.commit()
+
+            result = FlightService.get_available_airports()
+
+            assert 'JFK' in result['airports']
+            assert 'LAX' in result['airports']
+
+            # Cleanup
+            db.session.delete(flight)
+            db.session.commit()
+
+
+class TestFlightServiceSearch:
+    """Test search_flights method."""
+
+    def test_search_flights_no_filters(self, app, sample_flights):
+        """Test searching without any filters returns all active flights."""
+        with app.app_context():
+            result = FlightService.search_flights()
+
+            assert 'flights' in result
+            assert 'pagination' in result
+            assert isinstance(result['flights'], list)
+            assert result['pagination']['page'] == 1
+            assert result['pagination']['per_page'] == 10
+
+    def test_search_flights_by_origin(self, app, sample_flights):
+        """Test searching by origin airport."""
+        with app.app_context():
+            result = FlightService.search_flights(origin_airport='JFK')
+
+            assert len(result['flights']) > 0
+            for flight in result['flights']:
+                assert 'JFK' in flight['origin_airport'].upper()
+
+    def test_search_flights_by_destination(self, app, sample_flights):
+        """Test searching by destination airport."""
+        with app.app_context():
+            result = FlightService.search_flights(destination_airport='LAX')
+
+            assert len(result['flights']) > 0
+            for flight in result['flights']:
+                assert 'LAX' in flight['destination_airport'].upper()
+
+    def test_search_flights_by_origin_and_destination(self, app):
+        """Test searching by both origin and destination."""
+        with app.app_context():
+            # Create specific flights
+            flight = Flight(
+                flight_code='AA101',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight)
+            db.session.commit()
+
+            result = FlightService.search_flights(
+                origin_airport='JFK',
+                destination_airport='LAX'
+            )
+
+            assert len(result['flights']) > 0
+            for f in result['flights']:
+                assert 'JFK' in f['origin_airport']
+                assert 'LAX' in f['destination_airport']
+
+            # Cleanup
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_search_flights_by_departure_date(self, app):
+        """Test searching by departure date."""
+        with app.app_context():
+            target_date = datetime(2026, 3, 15, 10, 0)
+            flight = Flight(
+                flight_code='AA101',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=target_date,
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight)
+            db.session.commit()
+
+            result = FlightService.search_flights(departure_date='2026-03-15')
+
+            assert len(result['flights']) > 0
+            for f in result['flights']:
+                flight_date = datetime.fromisoformat(f['departure_time']).date()
+                assert flight_date == target_date.date()
+
+            # Cleanup
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_search_flights_by_arrival_date(self, app):
+        """Test searching by arrival date."""
+        with app.app_context():
+            target_date = datetime(2026, 3, 15, 14, 0)
+            flight = Flight(
+                flight_code='AA101',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=target_date,
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight)
+            db.session.commit()
+
+            result = FlightService.search_flights(arrival_date='2026-03-15')
+
+            assert len(result['flights']) > 0
+
+            # Cleanup
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_search_flights_invalid_date_format(self, app, sample_flights):
+        """Test that invalid date format doesn't crash, just ignores filter."""
+        with app.app_context():
+            result = FlightService.search_flights(departure_date='invalid-date')
+
+            # Should still return results, just ignore the invalid filter
+            assert 'flights' in result
+            assert isinstance(result['flights'], list)
+
+    def test_search_flights_case_insensitive(self, app):
+        """Test that airport search is case-insensitive."""
+        with app.app_context():
+            flight = Flight(
+                flight_code='AA101',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight)
+            db.session.commit()
+
+            result_lower = FlightService.search_flights(origin_airport='jfk')
+            result_upper = FlightService.search_flights(origin_airport='JFK')
+            result_mixed = FlightService.search_flights(origin_airport='Jfk')
+
+            assert len(result_lower['flights']) > 0
+            assert len(result_upper['flights']) > 0
+            assert len(result_mixed['flights']) > 0
+
+            # Cleanup
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_search_flights_partial_match(self, app):
+        """Test that airport search supports partial matching."""
+        with app.app_context():
+            flight = Flight(
+                flight_code='AA101',
+                origin_airport='JFK - John F Kennedy International',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight)
+            db.session.commit()
+
+            # Should match with just 'JFK' or 'Kennedy'
+            result1 = FlightService.search_flights(origin_airport='JFK')
+            result2 = FlightService.search_flights(origin_airport='Kennedy')
+
+            assert len(result1['flights']) > 0
+            assert len(result2['flights']) > 0
+
+            # Cleanup
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_search_flights_only_active(self, app):
+        """Test that only active flights are returned."""
+        with app.app_context():
+            active_flight = Flight(
+                flight_code='AA101',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            cancelled_flight = Flight(
+                flight_code='AA102',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 16, 10, 0),
+                arrival_time=datetime(2026, 3, 16, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.cancelled
+            )
+            db.session.add(active_flight)
+            db.session.add(cancelled_flight)
+            db.session.commit()
+
+            result = FlightService.search_flights()
+
+            # Should only have active flights
+            for flight in result['flights']:
+                assert flight['status'] == 'active'
+
+            # Cleanup
+            db.session.delete(active_flight)
+            db.session.delete(cancelled_flight)
+            db.session.commit()
+
+    def test_search_flights_ordered_by_departure(self, app):
+        """Test that results are ordered by departure time."""
+        with app.app_context():
+            flight1 = Flight(
+                flight_code='AA101',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 14, 0),
+                arrival_time=datetime(2026, 3, 15, 18, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            flight2 = Flight(
+                flight_code='AA102',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight1)
+            db.session.add(flight2)
+            db.session.commit()
+
+            result = FlightService.search_flights()
+
+            # First flight should have earlier departure
+            if len(result['flights']) >= 2:
+                first_departure = datetime.fromisoformat(result['flights'][0]['departure_time'])
+                second_departure = datetime.fromisoformat(result['flights'][1]['departure_time'])
+                assert first_departure <= second_departure
+
+            # Cleanup
+            db.session.delete(flight1)
+            db.session.delete(flight2)
+            db.session.commit()
+
+
+class TestFlightServicePagination:
+    """Test pagination in search_flights method."""
+
+    def test_search_flights_default_pagination(self, app, sample_flights):
+        """Test default pagination parameters."""
+        with app.app_context():
+            result = FlightService.search_flights()
+
+            assert result['pagination']['page'] == 1
+            assert result['pagination']['per_page'] == 10
+            assert len(result['flights']) <= 10
+
+    def test_search_flights_custom_page_size(self, app, sample_flights):
+        """Test custom page size."""
+        with app.app_context():
+            result = FlightService.search_flights(page=1, per_page=5)
+
+            assert result['pagination']['per_page'] == 5
+            assert len(result['flights']) <= 5
+
+    def test_search_flights_second_page(self, app, multiple_flights):
+        """Test getting second page of results."""
+        with app.app_context():
+            result = FlightService.search_flights(page=2, per_page=3)
+
+            assert result['pagination']['page'] == 2
+            assert result['pagination']['has_prev'] is True
+
+    def test_search_flights_invalid_page_defaults_to_one(self, app, sample_flights):
+        """Test that invalid page number defaults to 1."""
+        with app.app_context():
+            result = FlightService.search_flights(page=-1)
+
+            assert result['pagination']['page'] == 1
+
+    def test_search_flights_invalid_per_page_defaults(self, app, sample_flights):
+        """Test that invalid per_page defaults to 10."""
+        with app.app_context():
+            result = FlightService.search_flights(per_page=-5)
+
+            assert result['pagination']['per_page'] == 10
+
+    def test_search_flights_max_per_page_cap(self, app, sample_flights):
+        """Test that per_page is capped at 100."""
+        with app.app_context():
+            result = FlightService.search_flights(per_page=200)
+
+            assert result['pagination']['per_page'] == 100
+
+    def test_search_flights_pagination_metadata(self, app, multiple_flights):
+        """Test pagination metadata is correct."""
+        with app.app_context():
+            result = FlightService.search_flights(page=1, per_page=3)
+
+            pagination = result['pagination']
+            assert 'total_pages' in pagination
+            assert 'total_items' in pagination
+            assert 'has_next' in pagination
+            assert 'has_prev' in pagination
+            assert 'next_page' in pagination
+            assert 'prev_page' in pagination
+
+            assert pagination['has_prev'] is False
+            assert pagination['prev_page'] is None
+
+
+class TestFlightServiceHelpers:
+    """Test helper methods."""
+
+    def test_get_flight_by_id(self, app):
+        """Test getting flight by ID."""
+        with app.app_context():
+            flight = Flight(
+                flight_code='AA101',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight)
+            db.session.commit()
+
+            result = FlightService.get_flight_by_id(flight.id)
+
+            assert result is not None
+            assert result.id == flight.id
+            assert result.flight_code == 'AA101'
+
+            # Cleanup
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_get_flight_by_id_not_found(self, app):
+        """Test getting flight with non-existent ID."""
+        with app.app_context():
+            import uuid
+            fake_id = uuid.uuid4()
+            result = FlightService.get_flight_by_id(fake_id)
+
+            assert result is None
+
+    def test_format_flight_detail(self, app):
+        """Test formatting flight detail."""
+        with app.app_context():
+            flight = Flight(
+                flight_code='AA101',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 3, 15, 10, 0),
+                arrival_time=datetime(2026, 3, 15, 14, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(flight)
+            db.session.commit()
+
+            result = FlightService.format_flight_detail(flight)
+
+            assert 'flight' in result
+            assert result['flight']['id'] == str(flight.id)
+            assert result['flight']['flight_code'] == 'AA101'
+            assert result['flight']['origin_airport'] == 'JFK'
+            assert result['flight']['destination_airport'] == 'LAX'
+            assert 'departure_time' in result['flight']
+            assert 'arrival_time' in result['flight']
+            assert result['flight']['base_price'] == '299.99'
+            assert result['flight']['status'] == 'active'
+            assert 'created_at' in result['flight']
+            assert 'updated_at' in result['flight']
+
+            # Cleanup
+            db.session.delete(flight)
+            db.session.commit()
+
+
+class TestFlightServiceResponseFormat:
+    """Test response formatting."""
+
+    def test_search_response_structure(self, app, sample_flights):
+        """Test that search response has correct structure."""
+        with app.app_context():
+            result = FlightService.search_flights()
+
+            # Check top-level keys
+            assert 'flights' in result
+            assert 'pagination' in result
+
+            # Check flight structure
+            if result['flights']:
+                flight = result['flights'][0]
+                assert 'id' in flight
+                assert 'flight_code' in flight
+                assert 'origin_airport' in flight
+                assert 'destination_airport' in flight
+                assert 'departure_time' in flight
+                assert 'arrival_time' in flight
+                assert 'base_price' in flight
+                assert 'status' in flight
+                assert 'created_at' in flight
+
+            # Check pagination structure
+            pagination = result['pagination']
+            assert 'page' in pagination
+            assert 'per_page' in pagination
+            assert 'total_pages' in pagination
+            assert 'total_items' in pagination
+            assert 'has_next' in pagination
+            assert 'has_prev' in pagination
+            assert 'next_page' in pagination
+            assert 'prev_page' in pagination

@@ -45,7 +45,10 @@ def index():
                 'profile': '/api/users/me'
             },
             'users': '/api/users/',
-            'flights': '/api/flights/',
+            'flights': {
+                'airports': '/api/flights/airports',
+                'search': '/api/flights/search'
+            },
             'bookings': '/api/bookings/',
             'tickets': '/api/tickets/',
             'swagger': '/apidocs/'
