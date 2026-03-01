@@ -1,0 +1,81 @@
+tags:
+  - Users
+security:
+  - Bearer: []
+parameters:
+  - name: page
+    in: query
+    type: integer
+    default: 1
+    description: Page number (1-indexed)
+  - name: per_page
+    in: query
+    type: integer
+    default: 10
+    description: Number of items per page (max 100)
+responses:
+  200:
+    description: Paginated list of all users
+    schema:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              firstname:
+                type: string
+              lastname:
+                type: string
+              email:
+                type: string
+              role:
+                type: string
+              created_at:
+                type: string
+                format: date-time
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total_pages:
+              type: integer
+            total_items:
+              type: integer
+            has_next:
+              type: boolean
+            has_prev:
+              type: boolean
+            next_page:
+              type: integer
+              nullable: true
+            prev_page:
+              type: integer
+              nullable: true
+  401:
+    description: Invalid or missing token
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+  403:
+    description: User is not admin
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Forbidden
+        message:
+          type: string
+          example: Admin privileges required

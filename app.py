@@ -1,16 +1,13 @@
 # app.py
 import os
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 from dotenv import load_dotenv
+from extensions import db, migrate
+from flasgger import Swagger
 
 # Load environment variables
 load_dotenv()
 
-# Initialize extensions
-db = SQLAlchemy()
-migrate = Migrate()
 
 def create_app():
     app = Flask(__name__)
@@ -22,6 +19,30 @@ def create_app():
     )
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
+    # Swagger UI Configuration
+    app.config['SWAGGER'] = {
+        'title': 'Flight Management System API',
+        'uiversion': 3,
+        'version': '1.0.0',
+        'description': 'RESTful API for managing flight bookings with JWT authentication',
+        'termsOfService': '',
+        'specs_route': '/apidocs/',
+        'securityDefinitions': {
+            'Bearer': {
+                'type': 'apiKey',
+                'name': 'Authorization',
+                'in': 'header',
+                'description': 'JWT Authorization header using the Bearer scheme. Example: "Authorization: Bearer {token}"'
+            }
+        },
+        'security': [
+            {'Bearer': []}
+        ]
+    }
+
+    # Initialize Swagger UI
+    Swagger(app)
+
     # Initialize extensions with app
     db.init_app(app)
     migrate.init_app(app, db)
@@ -29,12 +50,12 @@ def create_app():
      # IMPORT MODELS HERE, inside app context
     # This ensures proper initialization order
     with app.app_context():
-        from models import User, Booking  # ← MOVE IMPORT HERE
-        
-    # Import and register blueprints if you have them
-    from routes import main_bp
-    app.register_blueprint(main_bp)
-    
+        from models import User, Booking, Flight, Ticket  # Import all models
+
+    # Import and register all route blueprints
+    from routes import init_routes
+    init_routes(app)
+
     return app
 
 # Create app instance

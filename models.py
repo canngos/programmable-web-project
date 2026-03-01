@@ -1,6 +1,6 @@
 
 from datetime import datetime
-from app import db
+from extensions import db
 import uuid
 import enum
 from sqlalchemy import Enum
@@ -14,9 +14,9 @@ class User(db.Model):
     __tablename__ = 'users'
     
     id = db.Column(db.UUID, primary_key=True, default=uuid.uuid4)
-    firstname = db.Column(db.String(30), nullable=False)
-    lastname = db.Column(db.String(30), nullable=False)
-    email = db.Column(db.String(30), nullable=False, unique=True)
+    firstname = db.Column(db.String(60), nullable=False)
+    lastname = db.Column(db.String(60), nullable=False)
+    email = db.Column(db.String(255), nullable=False, unique=True)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(Enum(Roles), nullable=False, default=Roles.user)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
