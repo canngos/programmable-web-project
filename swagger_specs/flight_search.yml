@@ -1,0 +1,103 @@
+tags:
+  - Flights
+security:
+  - Bearer: []
+parameters:
+  - name: origin_airport
+    in: query
+    type: string
+    required: false
+    description: Filter by origin airport code or name (partial match)
+    example: JFK
+  - name: destination_airport
+    in: query
+    type: string
+    required: false
+    description: Filter by destination airport code or name (partial match)
+    example: LAX
+  - name: departure_date
+    in: query
+    type: string
+    format: date
+    required: false
+    description: Filter by departure date (YYYY-MM-DD)
+    example: "2026-03-15"
+  - name: arrival_date
+    in: query
+    type: string
+    format: date
+    required: false
+    description: Filter by arrival date (YYYY-MM-DD)
+    example: "2026-03-15"
+  - name: page
+    in: query
+    type: integer
+    default: 1
+    description: Page number (1-indexed)
+  - name: per_page
+    in: query
+    type: integer
+    default: 10
+    description: Number of items per page (max 100)
+responses:
+  200:
+    description: Paginated list of flights matching search criteria
+    schema:
+      type: object
+      properties:
+        flights:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              flight_code:
+                type: string
+                example: AA1234
+              origin_airport:
+                type: string
+                example: JFK - John F Kennedy International
+              destination_airport:
+                type: string
+                example: LAX - Los Angeles International
+              departure_time:
+                type: string
+                format: date-time
+                example: "2026-03-15T10:30:00"
+              arrival_time:
+                type: string
+                format: date-time
+                example: "2026-03-15T14:45:00"
+              base_price:
+                type: string
+                example: "299.99"
+              status:
+                type: string
+                enum: [active, inactive, started, en_route, landed, cancelled, delayed]
+                example: active
+              created_at:
+                type: string
+                format: date-time
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total_pages:
+              type: integer
+            total_items:
+              type: integer
+            has_next:
+              type: boolean
+            has_prev:
+              type: boolean
+            next_page:
+              type: integer
+              nullable: true
+            prev_page:
+              type: integer
+              nullable: true

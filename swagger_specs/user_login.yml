@@ -1,0 +1,77 @@
+tags:
+  - Authentication
+parameters:
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        password:
+          type: string
+          format: password
+          example: password123
+responses:
+  200:
+    description: Login successful
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Login successful
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            firstname:
+              type: string
+            lastname:
+              type: string
+            email:
+              type: string
+            role:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          example: 86400
+  400:
+    description: Missing required fields
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Email and password are required
+  401:
+    description: Invalid credentials
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Unauthorized
+        message:
+          type: string
+          example: Invalid email or password

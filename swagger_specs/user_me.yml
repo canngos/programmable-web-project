@@ -1,0 +1,41 @@
+tags:
+  - Users
+security:
+  - Bearer: []
+responses:
+  200:
+    description: User profile details
+    schema:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            firstname:
+              type: string
+            lastname:
+              type: string
+            email:
+              type: string
+            role:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+  401:
+    description: Invalid or missing token
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Authentication required
+        message:
+          type: string
+          example: No token provided

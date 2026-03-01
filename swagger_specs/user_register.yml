@@ -1,0 +1,94 @@
+tags:
+  - Authentication
+parameters:
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      required:
+        - firstname
+        - lastname
+        - email
+        - password
+      properties:
+        firstname:
+          type: string
+          maxLength: 30
+          example: John
+        lastname:
+          type: string
+          maxLength: 30
+          example: Doe
+        email:
+          type: string
+          maxLength: 30
+          format: email
+          example: john@example.com
+        password:
+          type: string
+          minLength: 6
+          format: password
+          example: password123
+        role:
+          type: string
+          enum: [user, admin]
+          default: user
+          example: user
+responses:
+  201:
+    description: User registered successfully
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+          example: User registered successfully
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            firstname:
+              type: string
+            lastname:
+              type: string
+            email:
+              type: string
+            role:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          example: 86400
+  400:
+    description: Validation error or missing required fields
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Missing required fields
+  409:
+    description: Email already exists
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Conflict
+        message:
+          type: string
+          example: Email already registered
