@@ -19,3 +19,11 @@ class FlightNotFoundError(Exception):
         self.flight_id = flight_id
         self.message = f'Flight with ID {flight_id} not found'
         super().__init__(self.message)
+
+class SeatUnavailableError(Exception):
+    """Exception raised when the seat is unavailable whent trying to purchase a ticket."""
+
+    def __init__(self, seat_num) -> None:
+        self.seat_num = seat_num
+        self.message = f"Seat with seat number {seat_num} is unvailable for purchase."
+        super().__init__(self.message)

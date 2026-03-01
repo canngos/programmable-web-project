@@ -92,3 +92,83 @@ class Ticket(db.Model):
     
     flight = db.relationship("Flight", back_populates="tickets")
     booking = db.relationship("Booking", back_populates="tickets")
+
+    def serialize(self):
+        return {
+            "booking_id" : self.booking_id,
+            "passenger_name" : self.passenger_name,
+            "passenger_passport_num" : self.passenger_passport_num,
+            "seat_num" : self.seat_num,
+            "seat_class" : self.seat_class,
+            "flight_id" : self.flight_id,
+            "price" : self.price,
+            "created_at" : self.created_at,
+            "updated_at" : self.updated_at
+        }
+    
+    def deserialize(self, doc):
+        self.booking_id = doc["booking_id"]
+        self.passenger_name = doc["passenger_name"]
+        self.passenger_passport_num = doc["passenger_passport_num"]
+        self.seat_num = doc["seat_num"]
+        self.seat_class = doc["seat_class"]
+        self.flight_id = doc["flight_id"]
+        self.price = doc["price"]
+        self.created_at = doc["created_at"]
+        self.updated_at = doc["updated_at"]
+
+    @staticmethod
+    def json_schema():
+        schema = {
+            "type" : object,
+            "required" : [
+                "booking_id",
+                "passenger_name",
+                "passenger_passport_num",
+                "seat_num",
+                "seat_class",
+                "flight_id",
+                "price",
+                "created_at",
+                "updated_at"
+            ],
+        }
+        props = schema["properties"] = {}
+        props["booking_id"] = {
+            "description" : "booking id of the ticket",
+            "type" : "string"
+        }
+        props["passenger_name"] = {
+            "description" : "name of the passenger",
+            "type" : "string"
+        }
+        props["passenger_passport_num"] = {
+            "description" : "passport number of the passenger",
+            "type" : "string"
+        }
+        props["seat_num"] = {
+            "description" : "seat number assigned to the ticket",
+            "type" : "string"
+        }
+        props["seat_class"] = {
+            "description" : "class of the seat (economy, business, first)",
+            "type" : "string"
+        }
+        props["flight_id"] = {
+            "description" : "flight id associated with the ticket",
+            "type" : "string"
+        }
+        props["price"] = {
+            "description" : "price of the ticket",
+            "type" : "number"
+        }
+        props["created_at"] = {
+            "description" : "timestamp when the ticket was created",
+            "type" : "string"
+        }
+        props["updated_at"] = {
+            "description" : "timestamp when the ticket was last updated",
+            "type" : "string"
+        }       
+        return schema
+    

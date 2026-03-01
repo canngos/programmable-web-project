@@ -153,6 +153,5 @@ docker-compose up -d --build
 - If port 5000 is in use, change it in `docker-compose.yml`
 - For complete reset: `docker-compose down -v` then restart
 
-📖 **For detailed setup instructions, see `instructions.md`**
 
 

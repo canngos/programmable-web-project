@@ -49,8 +49,11 @@ def index():
                 'airports': '/api/flights/airports',
                 'search': '/api/flights/search'
             },
-            'bookings': '/api/bookings/',
-            'tickets': '/api/tickets/',
+            'bookings': {
+                'create_or_list': '/api/bookings/',
+                'detail': '/api/bookings/{booking_id}',
+                'seat_availability': '/api/bookings/availability'
+            },
             'swagger': '/apidocs/'
         },
         'documentation': 'Visit /apidocs/ for interactive API documentation'
