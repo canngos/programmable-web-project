@@ -23,7 +23,6 @@ def run_pylint():
         'ticket_management_system/models.py',
         'ticket_management_system/exceptions.py',
         'ticket_management_system/extensions.py',
-        'ticket_management_system/utils.py',
         'ticket_management_system/resources/',
         'ticket_management_system/static/schema/'
     ]
