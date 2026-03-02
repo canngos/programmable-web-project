@@ -10,7 +10,7 @@
 ### Verify Installation
 ```bash
 docker --version
-docker-compose --version
+docker compose -f ticket_management_system/docker-compose.yml --version
 python --version
 git --version
 ```
@@ -23,9 +23,9 @@ git --version
 
 # Or manually follow the steps below:
 # 1. Create .env file from template
-# 2. Start services: docker-compose up -d
-# 3. Apply migrations: flask db upgrade
-# 4. Populate database: python populate_db.py
+# 2. Start services: docker compose -f ticket_management_system/docker-compose.yml up -d
+# 3. Apply migrations: flask db --directory ticket_management_system/migrations upgrade
+# 4. Populate database: python -m ticket_management_system.populate_db
 ```
 
 ## 🔧 Manual Setup
@@ -52,59 +52,59 @@ cp .env.example .env
 ### 3. Database Setup
 ```bash
 # Start PostgreSQL database only
-docker-compose up -d postgres
+docker compose -f ticket_management_system/docker-compose.yml up -d postgres
 
 # Wait for database to be ready (5-10 seconds)
 sleep 10
 
 # Verify database is running
-docker-compose ps
+docker compose -f ticket_management_system/docker-compose.yml ps
 ```
 
 ### 4. Initialize Database Migrations
 ```bash
 # Set environment variables (Windows)
-set FLASK_APP=app.py
+set FLASK_APP=ticket_management_system
 set DATABASE_URL=postgresql://flask_user:flask_password@localhost:5432/flask_db
 
 # Set environment variables (Linux/Mac)
-export FLASK_APP=app.py
+export FLASK_APP=ticket_management_system
 export DATABASE_URL=postgresql://flask_user:flask_password@localhost:5432/flask_db
 
 # Initialize Alembic migrations (run once)
-flask db init
+flask db --directory ticket_management_system/migrations init
 
 # Generate initial migration
-flask db migrate -m "Initial migration"
+flask db --directory ticket_management_system/migrations migrate -m "Initial migration"
 
 # Apply migration to database
-flask db upgrade
+flask db --directory ticket_management_system/migrations upgrade
 ```
 
 From second migration onwards:
 ```bash
 # Make sure the database container is running 
-docker-compose up -d postgres
+docker compose -f ticket_management_system/docker-compose.yml up -d postgres
 
 # Set environment variables (Windows)
-set FLASK_APP=app.py
+set FLASK_APP=ticket_management_system
 set DATABASE_URL=postgresql://flask_user:flask_password@localhost:5432/flask_db
 
 # Set environment variables (Linux/Mac)
-export FLASK_APP=app.py
+export FLASK_APP=ticket_management_system
 export DATABASE_URL=postgresql://flask_user:flask_password@localhost:5432/flask_db
 
 # Make sure the database is up-to-date
-flask db upgrade
+flask db --directory ticket_management_system/migrations upgrade
 
 # Create the new database migration file
-flask db migrate -m "New migration"
+flask db --directory ticket_management_system/migrations migrate -m "New migration"
 
 # Upgrade the database to run the new migration
-flask db upgrade
+flask db --directory ticket_management_system/migrations upgrade
 
-# run the docker compose command to make sure the new migration file is copied to the flask app container
-docker compose build 
+# run the docker compose -f ticket_management_system/docker-compose.yml command to make sure the new migration file is copied to the flask app container
+docker compose -f ticket_management_system/docker-compose.yml build 
 
 # Finally, run the flask app 
 doocker compose up -d
@@ -114,30 +114,30 @@ doocker compose up -d
 ### 5. Start the Application
 ```bash
 # Start all services (Flask app + PostgreSQL)
-docker-compose up -d
+docker compose -f ticket_management_system/docker-compose.yml up -d
 
 # View logs
-docker-compose logs -f flask-app
+docker compose -f ticket_management_system/docker-compose.yml logs -f flask-app
 ```
 
 ### 6. Verify Installation
 ```bash
 # Check if services are running
-docker-compose ps
+docker compose -f ticket_management_system/docker-compose.yml ps
 
 # Test API endpoint
 curl http://localhost:5000/
 # Expected: {"message":"Flask PostgreSQL API",...}
 
 # Check database tables
-docker-compose exec postgres psql -U flask_user -d flask_db -c "\dt"
+docker compose -f ticket_management_system/docker-compose.yml exec postgres psql -U flask_user -d flask_db -c "\dt"
 # Should show: alembic_version, users, bookings
 ```
 
 ### 7. Populate Database with Sample Data (Optional but Recommended)
 ```bash
 # Run the population script to create sample data
-python populate_db.py
+python -m ticket_management_system.populate_db
 
 # This will create:
 # - 6 users (1 admin + 5 regular users)
@@ -155,7 +155,7 @@ python populate_db.py
 **Verify the populated data:**
 ```bash
 # Check record counts
-docker-compose exec postgres psql -U flask_user -d flask_db -c "
+docker compose -f ticket_management_system/docker-compose.yml exec postgres psql -U flask_user -d flask_db -c "
 SELECT 
     (SELECT COUNT(*) FROM users) as users,
     (SELECT COUNT(*) FROM flights) as flights,
@@ -198,7 +198,7 @@ The `populate_db.py` script creates realistic sample data for development and te
 source .venv/bin/activate
 
 # Run the population script
-python populate_db.py
+python -m ticket_management_system.populate_db
 ```
 
 **What gets created:**
@@ -236,13 +236,13 @@ pip install psycopg2-binary
 
 # If you get "password_hash too long" error
 # Apply the migration to increase column length:
-flask db upgrade
+flask db --directory ticket_management_system/migrations upgrade
 ```
 
 **Verify populated data:**
 ```bash
 # Check counts
-docker-compose exec postgres psql -U flask_user -d flask_db -c "
+docker compose -f ticket_management_system/docker-compose.yml exec postgres psql -U flask_user -d flask_db -c "
 SELECT 
     (SELECT COUNT(*) FROM users) as users,
     (SELECT COUNT(*) FROM flights) as flights,
@@ -251,7 +251,7 @@ SELECT
 "
 
 # View sample data
-docker-compose exec postgres psql -U flask_user -d flask_db -c "
+docker compose -f ticket_management_system/docker-compose.yml exec postgres psql -U flask_user -d flask_db -c "
 SELECT firstname, email, role FROM users LIMIT 5;
 SELECT flight_code, origin_airport, destination_airport FROM flights LIMIT 5;
 "
@@ -260,7 +260,7 @@ SELECT flight_code, origin_airport, destination_airport FROM flights LIMIT 5;
 ### Common Database Commands
 ```bash
 # Access PostgreSQL shell
-docker-compose exec postgres psql -U flask_user -d flask_db
+docker compose -f ticket_management_system/docker-compose.yml exec postgres psql -U flask_user -d flask_db
 
 # List all tables
 \dt
@@ -277,13 +277,13 @@ SELECT * FROM users;
 When you modify models (`models.py`):
 ```bash
 # Generate new migration
-flask db migrate -m "Description of changes"
+flask db --directory ticket_management_system/migrations migrate -m "Description of changes"
 
 # Apply migration
-flask db upgrade
+flask db --directory ticket_management_system/migrations upgrade
 
 # Rollback if needed
-flask db downgrade
+flask db --directory ticket_management_system/migrations downgrade
 ```
 
 ## 🔄 Development Workflow
@@ -291,13 +291,13 @@ flask db downgrade
 ### Starting Development
 ```bash
 # Start all services in detached mode
-docker-compose up -d
+docker compose -f ticket_management_system/docker-compose.yml up -d
 
 # Follow logs
-docker-compose logs -f flask-app
+docker compose -f ticket_management_system/docker-compose.yml logs -f flask-app
 
 # Stop services
-docker-compose down
+docker compose -f ticket_management_system/docker-compose.yml down
 ```
 
 ### Adding Dependencies
@@ -306,8 +306,8 @@ docker-compose down
 echo "new-package==1.0.0" >> requirements.txt
 
 # Rebuild Docker image
-docker-compose build --no-cache flask-app
-docker-compose up -d
+docker compose -f ticket_management_system/docker-compose.yml build --no-cache flask-app
+docker compose -f ticket_management_system/docker-compose.yml up -d
 ```
 
 ### Code Changes
@@ -323,25 +323,25 @@ docker-compose up -d
 #### 1. "Database connection failed"
 ```bash
 # Check if PostgreSQL is running
-docker-compose ps
+docker compose -f ticket_management_system/docker-compose.yml ps
 
 # Check PostgreSQL logs
-docker-compose logs postgres
+docker compose -f ticket_management_system/docker-compose.yml logs postgres
 
 # Test connection manually
-docker-compose exec postgres psql -U flask_user -d flask_db -c "SELECT 1;"
+docker compose -f ticket_management_system/docker-compose.yml exec postgres psql -U flask_user -d flask_db -c "SELECT 1;"
 ```
 
 #### 2. "No changes in schema detected" during migration
 ```bash
 # Drop all tables and start fresh
-docker-compose down -v
-docker-compose up -d postgres
+docker compose -f ticket_management_system/docker-compose.yml down -v
+docker compose -f ticket_management_system/docker-compose.yml up -d postgres
 sleep 5
 rm -rf migrations
-flask db init
-flask db migrate -m "Initial migration"
-flask db upgrade
+flask db --directory ticket_management_system/migrations init
+flask db --directory ticket_management_system/migrations migrate -m "Initial migration"
+flask db --directory ticket_management_system/migrations upgrade
 ```
 
 #### 3. "Port already in use"
@@ -357,7 +357,7 @@ lsof -i :5000                 # Linux/Mac
 #### 4. Docker Build Errors
 ```bash
 # Clean build cache
-docker-compose build --no-cache
+docker compose -f ticket_management_system/docker-compose.yml build --no-cache
 
 # Remove all Docker artifacts
 docker system prune -a
@@ -366,12 +366,12 @@ docker system prune -a
 ### Reset Everything
 ```bash
 # Complete reset (WARNING: Deletes all data!)
-docker-compose down -v
+docker compose -f ticket_management_system/docker-compose.yml down -v
 rm -rf migrations
 docker system prune -f
 
 # Start fresh
-docker-compose up -d --build
+docker compose -f ticket_management_system/docker-compose.yml up -d --build
 ```
 
 ## 📊 API Endpoints
@@ -407,26 +407,26 @@ print(response.json())
 docker ps
 
 # View logs
-docker-compose logs -f
-docker-compose logs flask-app
-docker-compose logs postgres
+docker compose -f ticket_management_system/docker-compose.yml logs -f
+docker compose -f ticket_management_system/docker-compose.yml logs flask-app
+docker compose -f ticket_management_system/docker-compose.yml logs postgres
 
 # Execute commands in container
-docker-compose exec flask-app python -c "print('Hello')"
-docker-compose exec postgres psql -U flask_user -d flask_db
+docker compose -f ticket_management_system/docker-compose.yml exec flask-app python -c "print('Hello')"
+docker compose -f ticket_management_system/docker-compose.yml exec postgres psql -U flask_user -d flask_db
 
 # Rebuild specific service
-docker-compose build flask-app
-docker-compose up -d flask-app
+docker compose -f ticket_management_system/docker-compose.yml build flask-app
+docker compose -f ticket_management_system/docker-compose.yml up -d flask-app
 ```
 
 ### Database Backup/Restore
 ```bash
 # Backup database
-docker-compose exec postgres pg_dump -U flask_user flask_db > backup.sql
+docker compose -f ticket_management_system/docker-compose.yml exec postgres pg_dump -U flask_user flask_db > backup.sql
 
 # Restore database
-cat backup.sql | docker-compose exec -T postgres psql -U flask_user flask_db
+cat backup.sql | docker compose -f ticket_management_system/docker-compose.yml exec -T postgres psql -U flask_user flask_db
 ```
 
 ## 🧪 Testing
@@ -434,7 +434,7 @@ cat backup.sql | docker-compose exec -T postgres psql -U flask_user flask_db
 ### Running Tests
 ```bash
 # Run tests inside container
-docker-compose exec flask-app python -m pytest tests/
+docker compose -f ticket_management_system/docker-compose.yml exec flask-app python -m pytest tests/
 
 # Or run locally (if dependencies installed)
 pytest tests/
@@ -443,7 +443,7 @@ pytest tests/
 ### Adding Test Data
 ```bash
 # Insert sample data via SQL
-docker-compose exec postgres psql -U flask_user -d flask_db -c "
+docker compose -f ticket_management_system/docker-compose.yml exec postgres psql -U flask_user -d flask_db -c "
 INSERT INTO users (firstname, lastname, email, password_hash, role) 
 VALUES ('Test', 'User', 'test@example.com', 'hash123', 1);
 "
@@ -457,10 +457,10 @@ VALUES ('Test', 'User', 'test@example.com', 'hash123', 1);
 docker stats
 
 # Container logs
-docker-compose logs --tail=100 flask-app
+docker compose -f ticket_management_system/docker-compose.yml logs --tail=100 flask-app
 
 # Database size
-docker-compose exec postgres psql -U flask_user -d flask_db -c "
+docker compose -f ticket_management_system/docker-compose.yml exec postgres psql -U flask_user -d flask_db -c "
 SELECT pg_size_pretty(pg_database_size('flask_db'));
 "
 ```
@@ -528,11 +528,14 @@ docker system prune
 ## 🆘 Need Help?
 
 ### Common Solutions
-- Check logs: `docker-compose logs`
-- Restart services: `docker-compose restart`
-- Rebuild: `docker-compose up -d --build`
-- Reset database: `docker-compose down -v`
+- Check logs: `docker compose -f ticket_management_system/docker-compose.yml logs`
+- Restart services: `docker compose -f ticket_management_system/docker-compose.yml restart`
+- Rebuild: `docker compose -f ticket_management_system/docker-compose.yml up -d --build`
+- Reset database: `docker compose -f ticket_management_system/docker-compose.yml down -v`
 
 ---
 
 **Note:** This setup assumes development environment. For production deployment, additional configuration is required including security hardening, SSL certificates, and proper monitoring setup.
+
+
+

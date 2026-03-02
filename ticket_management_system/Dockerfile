@@ -25,7 +25,7 @@ COPY . .
 RUN adduser -D -u 1000 flaskuser
 
 # Set up entrypoint
-COPY entrypoint.sh /entrypoint.sh
+COPY ticket_management_system/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Change ownership of app and virtual environment

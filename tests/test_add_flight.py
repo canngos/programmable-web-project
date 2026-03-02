@@ -4,8 +4,8 @@ Tests admin-only flight creation with validation.
 """
 
 from datetime import datetime, timedelta
-from models import Flight
-from extensions import db
+from ticket_management_system.extensions import db
+from ticket_management_system.models import Flight
 
 
 class TestAddFlightEndpoint:

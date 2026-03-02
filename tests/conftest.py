@@ -6,11 +6,11 @@ import pytest
 import os
 from datetime import datetime, timedelta, timezone
 import jwt
-from app import create_app
-from extensions import db
-from models import User, Roles
+from ticket_management_system import create_app
+from ticket_management_system.extensions import db
+from ticket_management_system.models import User, Roles
+from ticket_management_system.resources.user_service import UserService
 from werkzeug.security import generate_password_hash
-from services.user_service import UserService
 
 
 @pytest.fixture(scope='session')
@@ -162,7 +162,7 @@ def multiple_users(app):
 def sample_flights(app):
     """Create sample flights for testing."""
     with app.app_context():
-        from models import Flight, FlightStatus
+        from ticket_management_system.models import Flight, FlightStatus
         from decimal import Decimal
         from datetime import datetime
 
@@ -213,7 +213,7 @@ def sample_flights(app):
 def multiple_flights(app):
     """Create multiple flights for pagination testing."""
     with app.app_context():
-        from models import Flight, FlightStatus
+        from ticket_management_system.models import Flight, FlightStatus
         from decimal import Decimal
         from datetime import datetime, timedelta
 

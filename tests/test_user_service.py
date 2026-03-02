@@ -5,9 +5,9 @@ Tests all business logic methods in the user service layer.
 
 from datetime import datetime, timezone, timedelta
 from werkzeug.security import check_password_hash
-from extensions import db
-from models import User, Roles
-from services.user_service import UserService
+from ticket_management_system.extensions import db
+from ticket_management_system.models import User, Roles
+from ticket_management_system.resources.user_service import UserService
 import jwt
 import os
 

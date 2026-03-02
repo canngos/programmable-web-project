@@ -3,9 +3,18 @@ Data population script for the flight system database.
 This script creates sample data for testing and development purposes.
 """
 
-from app import create_app
-from extensions import db
-from models import User, Flight, Booking, Ticket, Roles, FlightStatus, BookingStatus, SeatClass
+from ticket_management_system import create_app
+from ticket_management_system.extensions import db
+from ticket_management_system.models import (
+    Booking,
+    BookingStatus,
+    Flight,
+    FlightStatus,
+    Roles,
+    SeatClass,
+    Ticket,
+    User,
+)
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash
 from decimal import Decimal

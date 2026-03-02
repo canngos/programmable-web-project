@@ -7,10 +7,10 @@ from datetime import datetime
 from decimal import Decimal
 from urllib.parse import quote
 
-from extensions import db
-from models import Flight, FlightStatus, Roles, User
-from services.booking_service import BookingService
-from services.user_service import UserService
+from ticket_management_system.extensions import db
+from ticket_management_system.models import Flight, FlightStatus, Roles, User
+from ticket_management_system.resources.booking_service import BookingService
+from ticket_management_system.resources.user_service import UserService
 from werkzeug.security import generate_password_hash
 
 

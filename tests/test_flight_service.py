@@ -4,10 +4,10 @@ Tests all business logic methods in the flight service layer.
 """
 
 from datetime import datetime, timedelta
-from extensions import db
-from models import Flight, FlightStatus
-from services.flight_service import FlightService
+from ticket_management_system.extensions import db
 from decimal import Decimal
+from ticket_management_system.models import Flight, FlightStatus
+from ticket_management_system.resources.flight_service import FlightService
 
 
 class TestFlightServiceAirports:

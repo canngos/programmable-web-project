@@ -6,8 +6,8 @@ Tests all HTTP endpoints in the flight routes blueprint.
 import pytest
 from datetime import datetime
 from decimal import Decimal
-from models import Flight, FlightStatus
-from extensions import db
+from ticket_management_system.extensions import db
+from ticket_management_system.models import Flight, FlightStatus
 
 
 class TestAirportsEndpoint:

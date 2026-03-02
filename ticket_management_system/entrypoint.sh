@@ -11,15 +11,15 @@ done
 echo "PostgreSQL is ready!"
 
 # Check if migrations folder exists
-if [ ! -d "migrations" ]; then
+if [ ! -d "ticket_management_system/migrations" ]; then
     echo "Initializing migrations..."
-    flask db init
+    flask db --directory ticket_management_system/migrations init
 fi
 
 # Run migrations
 echo "Running database migrations..."
-flask db upgrade
+flask db --directory ticket_management_system/migrations upgrade
 
 # Start application
 echo "Starting Gunicorn..."
-exec gunicorn --bind 0.0.0.0:5000 --workers 2 --threads 4 --access-logfile - app:app
+exec gunicorn --bind 0.0.0.0:5000 --workers 2 --threads 4 --access-logfile - ticket_management_system.app:app

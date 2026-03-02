@@ -3,9 +3,9 @@ Unit tests for user routes endpoints.
 Tests all HTTP endpoints in the user routes blueprint.
 """
 
-from models import User, Roles
-from services.user_service import UserService
-from extensions import db
+from ticket_management_system.extensions import db
+from ticket_management_system.models import User, Roles
+from ticket_management_system.resources.user_service import UserService
 
 
 class TestRegisterEndpoint:

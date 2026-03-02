@@ -9,10 +9,10 @@ import uuid
 
 import pytest
 
-from extensions import db
-from exceptions import FlightNotFoundError, SeatUnavailableError
-from models import BookingStatus, Flight, FlightStatus, Roles, SeatClass, User
-from services.booking_service import BookingService
+from ticket_management_system.exceptions import FlightNotFoundError, SeatUnavailableError
+from ticket_management_system.extensions import db
+from ticket_management_system.models import BookingStatus, Flight, FlightStatus, Roles, SeatClass, User
+from ticket_management_system.resources.booking_service import BookingService
 from werkzeug.security import generate_password_hash
 
 
