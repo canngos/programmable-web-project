@@ -3,6 +3,8 @@ set -e
 
 echo "=== Starting Flask Application ==="
 
+FLASK_APP_TARGET="app:app"
+
 # Wait for PostgreSQL
 echo "Waiting for PostgreSQL..."
 while ! nc -z postgres 5432; do
@@ -10,15 +12,17 @@ while ! nc -z postgres 5432; do
 done
 echo "PostgreSQL is ready!"
 
-# Check if migrations folder exists
-if [ ! -d "ticket_management_system/migrations" ]; then
+# Run migration commands from the package directory so Flask-Migrate uses
+# ticket_management_system/migrations as its default location.
+MIGRATIONS_DIR="/app/ticket_management_system/migrations"
+if [ ! -d "$MIGRATIONS_DIR" ]; then
     echo "Initializing migrations..."
-    flask db --directory ticket_management_system/migrations init
+    (cd /app/ticket_management_system && PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db init)
 fi
 
 # Run migrations
 echo "Running database migrations..."
-flask db --directory ticket_management_system/migrations upgrade
+(cd /app/ticket_management_system && PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db upgrade)
 
 # Start application
 echo "Starting Gunicorn..."

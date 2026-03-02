@@ -5,9 +5,9 @@ Provides endpoint for booking payment and confirmation.
 
 from flask import Blueprint, request, jsonify
 from flasgger import swag_from
-from extensions import db
-from models import Booking, BookingStatus
-from routes.user_routes import token_required
+from ticket_management_system.extensions import db
+from ticket_management_system.models import Booking, BookingStatus
+from ticket_management_system.utils import token_required
 
 payment_bp = Blueprint('payments', __name__, url_prefix='/api/payments')
 
@@ -90,7 +90,7 @@ def process_payment(current_user):
                 "message": "Booking is already paid"
             }), 409
         
-        booking.status = BookingStatus.paid
+        booking.booking_status = BookingStatus.paid
 
         db.session.commit()
 
