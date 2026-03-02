@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify
 from flasgger import swag_from
 from ticket_management_system.extensions import db
 from ticket_management_system.models import Booking, BookingStatus
-from ticket_management_system.utils import token_required
+from ticket_management_system.resources.users import token_required
 
 payment_bp = Blueprint('payments', __name__, url_prefix='/api/payments')
 
