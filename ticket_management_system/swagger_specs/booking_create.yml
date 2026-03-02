@@ -1,0 +1,156 @@
+tags:
+  - Bookings
+security:
+  - Bearer: []
+parameters:
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      required:
+        - flight_id
+        - passengers
+      properties:
+        flight_id:
+          type: string
+          format: uuid
+          example: "fe4a1338-4b98-4b51-9f5c-1234567890ab"
+        booking_status:
+          type: string
+          enum: [booked, paid, cancelled, refunded]
+          default: booked
+          example: booked
+        passengers:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: object
+            required:
+              - passenger_name
+              - passenger_passport_num
+              - seat_num
+            properties:
+              passenger_name:
+                type: string
+                minLength: 1
+                maxLength: 50
+                example: John Doe
+              passenger_passport_num:
+                type: string
+                minLength: 1
+                maxLength: 12
+                example: P12345678
+              seat_num:
+                type: string
+                minLength: 1
+                maxLength: 4
+                example: 12A
+              seat_class:
+                type: string
+                enum: [economy, business, first]
+                default: economy
+                example: economy
+responses:
+  201:
+    description: Booking created successfully
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Booking created successfully
+        booking:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            user_id:
+              type: string
+              format: uuid
+            flight_id:
+              type: string
+              format: uuid
+            total_price:
+              type: string
+              example: "300.00"
+            booking_status:
+              type: string
+              enum: [booked, paid, cancelled, refunded]
+              example: booked
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+            tickets:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  passenger_name:
+                    type: string
+                  passenger_passport_num:
+                    type: string
+                  seat_num:
+                    type: string
+                  seat_class:
+                    type: string
+                    enum: [economy, business, first]
+                  price:
+                    type: string
+                    example: "300.00"
+                  created_at:
+                    type: string
+                    format: date-time
+  400:
+    description: Validation error or bad request
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Validation failed
+        errors:
+          type: object
+          description: Field-specific validation errors when schema validation fails
+  401:
+    description: Invalid or missing token
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+  404:
+    description: Flight not found
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Not Found
+        message:
+          type: string
+          example: Flight with ID fe4a1338-4b98-4b51-9f5c-1234567890ab not found
+  409:
+    description: Seat unavailable
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Conflict
+        message:
+          type: string
+          example: Seat 12A is already booked

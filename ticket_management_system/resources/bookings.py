@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from flasgger import swag_from
 from marshmallow import ValidationError
 
 from ticket_management_system.exceptions import FlightNotFoundError, SeatUnavailableError
@@ -16,6 +17,7 @@ booking_bp = Blueprint("bookings", __name__, url_prefix="/api/bookings")
 
 @booking_bp.route("/", methods=["POST"])
 @token_required
+@swag_from("../swagger_specs/booking_create.yml")
 def create_booking(current_user):
     try:
         schema = BookTicketsSchema()
@@ -58,6 +60,7 @@ def create_booking(current_user):
 
 @booking_bp.route("/", methods=["GET"])
 @token_required
+@swag_from("../swagger_specs/booking_list.yml")
 def list_bookings(current_user):
     try:
         query_schema = PaginationQuerySchema()
@@ -90,6 +93,7 @@ def list_bookings(current_user):
 
 @booking_bp.route("/<uuid:booking_id>", methods=["GET"])
 @token_required
+@swag_from("../swagger_specs/booking_get.yml")
 def get_booking(current_user, booking_id):
     booking = BookingService.get_booking_by_id(booking_id)
     if not booking:
@@ -119,6 +123,7 @@ def get_booking(current_user, booking_id):
 
 @booking_bp.route("/availability", methods=["GET"])
 @token_required
+@swag_from("../swagger_specs/booking_availability.yml")
 def get_seat_availability(current_user):
     try:
         schema = SeatAvailabilityQuerySchema()

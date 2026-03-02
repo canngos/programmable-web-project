@@ -13,6 +13,7 @@ payment_bp = Blueprint('payments', __name__, url_prefix='/api/payments')
 
 @payment_bp.route('/', methods=['POST'])
 @token_required
+@swag_from("../swagger_specs/payment_process.yml")
 def process_payment(current_user):
     """
     Process payment for a booking and confirm it.
