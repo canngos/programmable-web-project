@@ -98,6 +98,7 @@ All application code, Docker definitions, and migrations are under `ticket_manag
 |   |   |-- users.py
 |   |   |-- flights.py
 |   |   |-- bookings.py
+|   |   |-- payments.py
 |   |   |-- user_service.py
 |   |   |-- flight_service.py
 |   |   |-- booking_service.py
