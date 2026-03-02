@@ -8,7 +8,8 @@ RUN apk add --no-cache \
     musl-dev \
     postgresql-dev \
     libffi-dev \
-    postgresql-client
+    postgresql-client \
+    netcat-openbsd
 
 # Create virtual environment
 RUN python -m venv /opt/venv
@@ -24,9 +25,10 @@ COPY . .
 # Create non-root user
 RUN adduser -D -u 1000 flaskuser
 
-# Set up entrypoint
+# Set up entrypoint - copy and fix line endings
 COPY ticket_management_system/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    sed -i 's/\r$//' /entrypoint.sh
 
 # Change ownership of app and virtual environment
 RUN chown -R flaskuser:flaskuser /app /opt/venv

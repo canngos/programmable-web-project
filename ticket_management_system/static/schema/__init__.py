@@ -1,3 +1,4 @@
+"""Marshmallow validation schemas."""
 from .flight_schemas import FlightSearchSchema, AddFlightSchema
 from .user_schemas import UserProfileUpdateSchema, UserRegistrationSchema
 

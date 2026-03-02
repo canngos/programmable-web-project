@@ -1,3 +1,4 @@
+"""Business logic for booking operations."""
 from decimal import Decimal, ROUND_HALF_UP
 
 from ticket_management_system.extensions import db
@@ -6,6 +7,7 @@ from ticket_management_system.exceptions import FlightNotFoundError, SeatUnavail
 
 
 class BookingService:
+    """Service class for booking operations."""
     BOOKABLE_STATUSES = {
         FlightStatus.active,
         FlightStatus.delayed,
@@ -20,10 +22,12 @@ class BookingService:
 
     @staticmethod
     def get_booking_by_id(booking_id):
+        """Get booking by ID."""
         return Booking.query.filter_by(id=booking_id).first()
 
     @staticmethod
     def get_paginated_bookings(user_id=None, page=1, per_page=10):
+        """Get paginated list of bookings, optionally filtered by user."""
         query = Booking.query
         if user_id is not None:
             query = query.filter(Booking.user_id == user_id)
@@ -53,6 +57,7 @@ class BookingService:
 
     @staticmethod
     def get_seat_availability(flight_id, seat_num):
+        """Check seat availability."""
         normalized_seat = BookingService._normalize_seat_number(seat_num)
         existing_ticket = Ticket.query.filter_by(
             flight_id=flight_id,
@@ -62,12 +67,14 @@ class BookingService:
 
     @staticmethod
     def calculate_ticket_price(base_price, seat_class):
+        """Calculate ticket price based on seat class."""
         multiplier = BookingService.PRICE_MULTIPLIERS[seat_class]
         price = Decimal(str(base_price)) * multiplier
         return price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     @staticmethod
     def book_tickets(user_id, flight_id, passengers, booking_status=BookingStatus.booked):
+        """Book tickets for a flight."""
         if not isinstance(passengers, list) or len(passengers) == 0:
             raise ValueError("passengers must be a non-empty list")
 
@@ -116,6 +123,7 @@ class BookingService:
 
     @staticmethod
     def format_booking_detail(booking):
+        """Format booking details for API response."""
         return {
             "booking": {
                 "id": str(booking.id),
@@ -142,6 +150,7 @@ class BookingService:
 
     @staticmethod
     def format_booking_summary(booking):
+        """Format booking summary for list views."""
         return {
             "id": str(booking.id),
             "user_id": str(booking.user_id),
@@ -216,6 +225,7 @@ class BookingService:
 
     @staticmethod
     def update_booking(booking_id, booking_status=None):
+        """Update booking status."""
         if booking_status is None:
             raise ValueError("booking_status is required")
 
@@ -238,6 +248,7 @@ class BookingService:
 
     @staticmethod
     def cancel_booking(booking_id):
+        """Cancel a booking."""
         booking = Booking.query.filter_by(id=booking_id).first()
         if not booking:
             return None
@@ -255,4 +266,3 @@ class BookingService:
 
         db.session.commit()
         return booking
-

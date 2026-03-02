@@ -1,9 +1,10 @@
-from flask import Blueprint, request, jsonify
+"""User authentication and management API endpoints."""
 from functools import wraps
+from flask import Blueprint, request, jsonify
 from flasgger import swag_from
 from marshmallow import ValidationError
-from ticket_management_system.extensions import db
 from ticket_management_system.models import Roles
+from ticket_management_system.utils import handle_validation_error, handle_general_error, handle_conflict_error
 from ticket_management_system.resources.user_service import UserService
 from ticket_management_system.static.schema.user_schemas import UserProfileUpdateSchema, UserRegistrationSchema
 from ticket_management_system.exceptions import (
@@ -19,6 +20,7 @@ user_bp = Blueprint('users', __name__, url_prefix='/api/users')
 
 
 def token_required(f):
+    """Decorator to require JWT authentication."""
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
@@ -62,6 +64,7 @@ def token_required(f):
 
 
 def admin_required(f):
+    """Decorator to require admin role."""
     @wraps(f)
     def decorated(current_user, *args, **kwargs):
         if current_user.role != Roles.admin:
@@ -77,12 +80,13 @@ def admin_required(f):
 
 @user_bp.route('/register', methods=['POST'])
 @swag_from('../swagger_specs/user_register.yml')
-def register():
+def register():  # pylint: disable=too-many-return-statements
+    """Register a new user."""
     try:
         # Get JSON data - handle empty body
         try:
             json_data = request.get_json()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             return jsonify({
                 'error': 'Bad Request',
                 'message': 'Request body must be valid JSON'
@@ -117,37 +121,26 @@ def register():
             password=validated_data['password'],
             role=role
         )
-
         # Format response with token
         response = UserService.format_user_response(new_user, include_token=True)
         response['message'] = 'User registered successfully'
 
         return jsonify(response), 201
-
     except ValidationError as err:
-        return jsonify({
-            'error': 'Bad Request',
-            'message': 'Validation failed',
-            'errors': err.messages
-        }), 400
-
+        return handle_validation_error(err)
     except InvalidRoleError as e:
         return jsonify({
             'error': 'Bad Request',
             'message': e.message
         }), 409
-
     except Exception as e:  # pylint: disable=broad-exception-caught
-        db.session.rollback()
-        return jsonify({
-            'error': 'Internal Server Error',
-            'message': str(e)
-        }), 500
+        return handle_general_error(e)
 
 
 @user_bp.route('/login', methods=['POST'])
 @swag_from('../swagger_specs/user_login.yml')
 def login():
+    """Login user and return JWT token."""
     try:
         data = request.get_json(force=True, silent=True)
 
@@ -178,18 +171,15 @@ def login():
             'error': 'Unauthorized',
             'message': e.message
         }), 401
-
-    except Exception as e:
-        return jsonify({
-            'error': 'Internal Server Error',
-            'message': str(e)
-        }), 500
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return handle_general_error(e, rollback=False)
 
 
 @user_bp.route('/me', methods=['GET'])
 @token_required
 @swag_from('../swagger_specs/user_me.yml')
 def get_current_user(current_user):
+    """Get current user profile."""
     response = UserService.format_user_detail(current_user)
     return jsonify(response), 200
 
@@ -197,12 +187,13 @@ def get_current_user(current_user):
 @user_bp.route('/me', methods=['PATCH'])
 @token_required
 @swag_from('../swagger_specs/user_update_me.yml')
-def update_current_user(current_user):
+def update_current_user(current_user):  # pylint: disable=too-many-return-statements
+    """Update current user profile."""
     try:
         # Get JSON data - handle empty body
         try:
             json_data = request.get_json()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             return jsonify({
                 'error': 'Bad Request',
                 'message': 'Request body must be valid JSON'
@@ -242,24 +233,11 @@ def update_current_user(current_user):
         return jsonify(response), 200
 
     except ValidationError as err:
-        return jsonify({
-            'error': 'Bad Request',
-            'message': 'Validation failed',
-            'errors': err.messages
-        }), 400
-
+        return handle_validation_error(err)
     except EmailAlreadyExistsError as e:
-        return jsonify({
-            'error': 'Conflict',
-            'message': e.message
-        }), 409
-
+        return handle_conflict_error(e.message)
     except Exception as e:  # pylint: disable=broad-exception-caught
-        db.session.rollback()
-        return jsonify({
-            'error': 'Internal Server Error',
-            'message': str(e)
-        }), 500
+        return handle_general_error(e)
 
 
 @user_bp.route('/', methods=['GET'])
@@ -267,6 +245,7 @@ def update_current_user(current_user):
 @admin_required
 @swag_from('../swagger_specs/user_list.yml')
 def get_all_users(_current_user):
+    """Get paginated list of all users (admin only)."""
     # Get pagination parameters from query string
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)

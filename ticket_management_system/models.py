@@ -1,4 +1,4 @@
-
+"""Database models for the Flight Management System."""
 import uuid
 import enum
 from datetime import datetime
@@ -6,11 +6,15 @@ from sqlalchemy import Enum
 from sqlalchemy import DECIMAL as Decimal
 from ticket_management_system.extensions import db
 
+# pylint: disable=invalid-name
 class Roles(enum.Enum):
+    """User roles enum."""
     admin = 1
     user = 2
 
+# pylint: disable=too-few-public-methods
 class User(db.Model):
+    """User model for authentication and authorization."""
     __tablename__ = 'users'
 
     id = db.Column(db.UUID, primary_key=True, default=uuid.uuid4)
@@ -24,7 +28,9 @@ class User(db.Model):
 
     bookings = db.relationship("Booking", back_populates="user", lazy=True, cascade="all, delete-orphan")
 
+# pylint: disable=invalid-name
 class FlightStatus(enum.Enum):
+    """Flight status enum."""
     active = 1
     inactive = 2
     started = 3
@@ -33,7 +39,9 @@ class FlightStatus(enum.Enum):
     cancelled = 6
     delayed = 7
 
+# pylint: disable=too-few-public-methods
 class Flight(db.Model):
+    """Flight model for managing flight information."""
     __tablename__ = 'flights'
 
     id = db.Column(db.UUID, primary_key=True, default=uuid.uuid4)
@@ -50,13 +58,17 @@ class Flight(db.Model):
     bookings = db.relationship("Booking", back_populates="flight", lazy=True, cascade="all, delete-orphan")
     tickets = db.relationship("Ticket", back_populates="flight", lazy=True, cascade="all, delete-orphan")
 
+# pylint: disable=invalid-name
 class BookingStatus(enum.Enum):
+    """Booking status enum."""
     booked = 1
     paid = 2
     cancelled = 3
     refunded = 4
 
+# pylint: disable=too-few-public-methods
 class Booking(db.Model):
+    """Booking model for managing flight bookings."""
     __tablename__ = 'bookings'
 
     id = db.Column(db.UUID, primary_key=True, default=uuid.uuid4)
@@ -71,13 +83,17 @@ class Booking(db.Model):
     flight = db.relationship("Flight", back_populates="bookings")
     tickets = db.relationship("Ticket", back_populates="booking", lazy=True, cascade="all, delete-orphan")
 
+# pylint: disable=invalid-name
 class SeatClass(enum.Enum):
+    """Seat class enum."""
     economy = 1
     business = 2
     first = 3
 
+# pylint: disable=too-many-instance-attributes
 class Ticket(db.Model):
-    __tablename__ = "tickets"
+    """Ticket model for managing individual passenger tickets."""
+    __tablename__ = 'tickets'
 
     id = db.Column(db.UUID, primary_key=True, default=uuid.uuid4)
     booking_id = db.Column(db.UUID, db.ForeignKey("bookings.id", ondelete="CASCADE"))
@@ -94,6 +110,7 @@ class Ticket(db.Model):
     booking = db.relationship("Booking", back_populates="tickets")
 
     def serialize(self):
+        """Serialize ticket to dictionary."""
         return {
             "booking_id" : self.booking_id,
             "passenger_name" : self.passenger_name,
@@ -107,6 +124,7 @@ class Ticket(db.Model):
         }
 
     def deserialize(self, doc):
+        """Deserialize dictionary to ticket."""
         self.booking_id = doc["booking_id"]
         self.passenger_name = doc["passenger_name"]
         self.passenger_passport_num = doc["passenger_passport_num"]
@@ -119,6 +137,7 @@ class Ticket(db.Model):
 
     @staticmethod
     def json_schema():
+        """Return JSON schema for ticket validation."""
         schema = {
             "type" : object,
             "required" : [

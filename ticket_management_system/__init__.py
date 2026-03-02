@@ -1,3 +1,4 @@
+"""Flask application factory and initialization."""
 import os
 
 from dotenv import load_dotenv
@@ -10,6 +11,7 @@ load_dotenv()
 
 
 def create_app():
+    """Create and configure Flask application instance."""
     app = Flask(__name__)
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
@@ -30,7 +32,10 @@ def create_app():
                 "type": "apiKey",
                 "name": "Authorization",
                 "in": "header",
-                "description": 'JWT Authorization header using the Bearer scheme. Example: "Authorization: Bearer {token}"',
+                "description": (
+                    'JWT Authorization header using the Bearer scheme. '
+                    'Example: "Authorization: Bearer {token}"'
+                ),
             }
         },
         "security": [{"Bearer": []}],

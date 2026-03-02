@@ -1,8 +1,10 @@
-from marshmallow import Schema, fields, ValidationError, validates_schema, validate
+"""Validation schemas for flight endpoints."""
 from datetime import datetime
+from marshmallow import Schema, fields, ValidationError, validates_schema, validate
 
 
 class FlightSearchSchema(Schema):
+    """Schema for flight search validation."""
     origin_airport = fields.Str(required=False, allow_none=True)
     destination_airport = fields.Str(required=False, allow_none=True)
     departure_date = fields.Date(required=False, allow_none=True, format='%Y-%m-%d')
@@ -11,14 +13,16 @@ class FlightSearchSchema(Schema):
     per_page = fields.Int(required=False, load_default=10, validate=validate.Range(min=1, max=100))
 
     @validates_schema
-    def validate_dates(self, data, **kwargs):
+    def validate_dates(self, data, **_kwargs):
+        """Validate date parameters."""
         # Validate arrival is after departure if both provided
         if (data.get('departure_date') and data.get('arrival_date') and
-            data['departure_date'] > data['arrival_date']):
+                data['departure_date'] > data['arrival_date']):
             raise ValidationError('Arrival date must be on or after departure date', 'arrival_date')
 
 
 class AddFlightSchema(Schema):
+    """Schema for adding a new flight."""
     flight_code = fields.Str(required=True, validate=validate.Length(min=3, max=8))
     origin_airport = fields.Str(required=True, validate=validate.Length(min=3, max=30))
     destination_airport = fields.Str(required=True, validate=validate.Length(min=3, max=30))
@@ -28,6 +32,7 @@ class AddFlightSchema(Schema):
 
     @validates_schema
     def validate_flight_data(self, data, **_kwargs):
+        """Validate flight creation data."""
         now = datetime.now()
 
         # Validate departure time is not in the past
