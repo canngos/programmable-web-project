@@ -16,6 +16,10 @@ class TestAirportsEndpoint:
     def test_get_airports_empty_database(self, client, app, auth_headers):
         """Test getting airports when no flights exist."""
         with app.app_context():
+            # Clean up all flights first
+            Flight.query.delete()
+            db.session.commit()
+
             response = client.get('/api/flights/airports', headers=auth_headers)
 
             assert response.status_code == 200
@@ -551,6 +555,10 @@ class TestFlightSearchEdgeCases:
     def test_search_empty_database(self, client, app, auth_headers):
         """Test search when database is empty."""
         with app.app_context():
+            # Clean up all flights first
+            Flight.query.delete()
+            db.session.commit()
+
             response = client.get('/api/flights/search', headers=auth_headers)
 
             assert response.status_code == 200
@@ -652,3 +660,242 @@ class TestFlightRoutesIntegration:
             # Cleanup
             db.session.delete(flight)
             db.session.commit()
+
+
+class TestDeleteFlightEndpoint:
+    """Test DELETE /api/flights/{id} endpoint."""
+
+    def test_delete_flight_as_admin(self, client, app, admin_headers):
+        """Test deleting a flight as admin."""
+        with app.app_context():
+            # Create a test flight
+            test_flight = Flight(
+                flight_code='TESTDEL001',
+                origin_airport='NYC',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('500.00'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            # Delete the flight
+            response = client.delete(f'/api/flights/{flight_id}',
+                headers=admin_headers)
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert 'message' in data
+            assert 'deleted successfully' in data['message']
+
+            # Verify flight is deleted
+            deleted_flight = Flight.query.filter_by(id=flight_id).first()
+            assert deleted_flight is None
+
+    def test_delete_flight_as_regular_user(self, client, app, auth_headers):
+        """Test deleting a flight as regular user (should fail)."""
+        with app.app_context():
+            # Create a test flight
+            test_flight = Flight(
+                flight_code='TESTDEL002',
+                origin_airport='NYC',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('500.00'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            # Try to delete as regular user
+            response = client.delete(f'/api/flights/{flight_id}',
+                headers=auth_headers)
+
+            assert response.status_code == 403
+            data = response.get_json()
+            assert data['error'] == 'Forbidden'
+            assert 'Admin privileges required' in data['message']
+
+            # Verify flight still exists
+            flight_still_exists = Flight.query.filter_by(id=flight_id).first()
+            assert flight_still_exists is not None
+
+            # Cleanup
+            db.session.delete(flight_still_exists)
+            db.session.commit()
+
+    def test_delete_nonexistent_flight(self, client, app, admin_headers):
+        """Test deleting a flight that doesn't exist."""
+        with app.app_context():
+            import uuid
+            # Use a random UUID that doesn't exist
+            nonexistent_id = uuid.uuid4()
+
+            response = client.delete(f'/api/flights/{nonexistent_id}',
+                headers=admin_headers)
+
+            assert response.status_code == 404
+            data = response.get_json()
+            assert data['error'] == 'Not Found'
+            assert 'not found' in data['message']
+
+    def test_delete_flight_without_token(self, client, app):
+        """Test deleting a flight without authentication."""
+        with app.app_context():
+            import uuid
+            fake_id = uuid.uuid4()
+            response = client.delete(f'/api/flights/{fake_id}')
+
+            assert response.status_code == 401
+            data = response.get_json()
+            assert data['error'] == 'Authentication required'
+
+    def test_delete_flight_with_invalid_token(self, client, app):
+        """Test deleting a flight with invalid token."""
+        with app.app_context():
+            import uuid
+            fake_id = uuid.uuid4()
+            response = client.delete(f'/api/flights/{fake_id}',
+                headers={'Authorization': 'Bearer invalid_token'})
+
+            assert response.status_code == 401
+
+    def test_delete_flight_invalid_uuid_format(self, client, app, admin_headers):
+        """Test deleting a flight with invalid UUID format."""
+        with app.app_context():
+            response = client.delete('/api/flights/not-a-valid-uuid',
+                headers=admin_headers)
+
+            # Flask will return 404 for invalid UUID format
+            assert response.status_code == 404
+
+    def test_delete_flight_cascades_bookings(self, client, app, admin_headers, test_user):
+        """Test that deleting a flight cascades to delete related bookings."""
+        with app.app_context():
+            from ticket_management_system.models import Booking, BookingStatus
+
+            # Create a test flight
+            test_flight = Flight(
+                flight_code='TESTCAS001',
+                origin_airport='NYC',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('500.00'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            # Create a booking for this flight
+            test_booking = Booking(
+                user_id=test_user.id,
+                flight_id=flight_id,
+                total_price=Decimal('500.00'),
+                booking_status=BookingStatus.booked
+            )
+            db.session.add(test_booking)
+            db.session.commit()
+            booking_id = test_booking.id
+
+            # Delete the flight
+            response = client.delete(f'/api/flights/{flight_id}',
+                headers=admin_headers)
+
+            assert response.status_code == 200
+
+            # Verify flight is deleted
+            deleted_flight = Flight.query.filter_by(id=flight_id).first()
+            assert deleted_flight is None
+
+            # Verify booking is also deleted (cascade)
+            deleted_booking = Booking.query.filter_by(id=booking_id).first()
+            assert deleted_booking is None
+
+    def test_delete_flight_cascades_tickets(self, client, app, admin_headers, test_user):
+        """Test that deleting a flight cascades to delete related tickets."""
+        with app.app_context():
+            from ticket_management_system.models import Booking, Ticket, BookingStatus, SeatClass
+
+            # Create a test flight
+            test_flight = Flight(
+                flight_code='TESTCAS002',
+                origin_airport='NYC',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('500.00'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            # Create a booking
+            test_booking = Booking(
+                user_id=test_user.id,
+                flight_id=flight_id,
+                total_price=Decimal('500.00'),
+                booking_status=BookingStatus.booked
+            )
+            db.session.add(test_booking)
+            db.session.commit()
+
+            # Create a ticket
+            test_ticket = Ticket(
+                booking_id=test_booking.id,
+                flight_id=flight_id,
+                passenger_name='John Doe',
+                passenger_passport_num='AB123456',
+                seat_num='12A',
+                price=Decimal('500.00'),
+                seat_class=SeatClass.economy
+            )
+            db.session.add(test_ticket)
+            db.session.commit()
+            ticket_id = test_ticket.id
+
+            # Delete the flight
+            response = client.delete(f'/api/flights/{flight_id}',
+                headers=admin_headers)
+
+            assert response.status_code == 200
+
+            # Verify ticket is also deleted (cascade)
+            deleted_ticket = Ticket.query.filter_by(id=ticket_id).first()
+            assert deleted_ticket is None
+
+    def test_delete_flight_response_structure(self, client, app, admin_headers):
+        """Test that delete response has correct structure."""
+        with app.app_context():
+            # Create a test flight
+            test_flight = Flight(
+                flight_code='TESTRES001',
+                origin_airport='NYC',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('500.00'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.delete(f'/api/flights/{flight_id}',
+                headers=admin_headers)
+
+            assert response.status_code == 200
+            data = response.get_json()
+
+            # Check response structure
+            assert 'message' in data
+            assert str(flight_id) in data['message']
+            assert 'deleted successfully' in data['message']
+

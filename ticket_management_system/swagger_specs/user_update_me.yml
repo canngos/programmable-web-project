@@ -1,0 +1,121 @@
+Update Current User Profile
+---
+tags:
+  - Users
+summary: Update current authenticated user's profile
+description: |
+  Update the profile information of the currently authenticated user.
+  At least one field must be provided for update.
+  Only the authenticated user can update their own profile.
+security:
+  - Bearer: []
+parameters:
+  - in: body
+    name: body
+    description: User profile update data (at least one field required)
+    required: true
+    schema:
+      type: object
+      properties:
+        firstname:
+          type: string
+          maxLength: 30
+          description: New first name
+          example: John
+        lastname:
+          type: string
+          maxLength: 30
+          description: New last name
+          example: Doe
+        email:
+          type: string
+          maxLength: 30
+          format: email
+          description: New email address (must be unique)
+          example: john.doe.updated@example.com
+        password:
+          type: string
+          minLength: 6
+          format: password
+          description: New password (will be hashed)
+          example: newpassword123
+responses:
+  200:
+    description: Profile updated successfully
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Profile updated successfully
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "123e4567-e89b-12d3-a456-426614174000"
+            firstname:
+              type: string
+              example: John
+            lastname:
+              type: string
+              example: Doe
+            email:
+              type: string
+              example: john.doe@example.com
+            role:
+              type: string
+              enum: [admin, user]
+              example: user
+            created_at:
+              type: string
+              format: date-time
+              example: "2026-01-15T10:30:00"
+            updated_at:
+              type: string
+              format: date-time
+              example: "2026-03-02T14:25:00"
+  400:
+    description: Bad Request - Validation failed
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: At least one field (firstname, lastname, email, or password) must be provided
+  401:
+    description: Unauthorized - Invalid or missing token
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Authentication required
+        message:
+          type: string
+          example: No token provided
+  409:
+    description: Conflict - Email already in use
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Conflict
+        message:
+          type: string
+          example: Email already in use by another user
+  500:
+    description: Internal Server Error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string

@@ -15,17 +15,20 @@ def index():
                     "authentication": {
                         "register": "/api/users/register",
                         "login": "/api/users/login",
-                        "profile": "/api/users/me",
+                        "get_or_update profile": "/api/users/me",
                     },
                     "users": "/api/users/",
                     "flights": {
                         "airports": "/api/flights/airports",
                         "search": "/api/flights/search",
+                        "add_or_delete flight": "/api/flights/",
                     },
                     "bookings": {
                         "create_or_list": "/api/bookings/",
                         "detail": "/api/bookings/{booking_id}",
                         "seat_availability": "/api/bookings/availability",
+                        "update_status": "/api/bookings/{booking_id}",
+                        "cancel": "/api/bookings/{booking_id}",
                     },
                     "swagger": "/apidocs/",
                 },

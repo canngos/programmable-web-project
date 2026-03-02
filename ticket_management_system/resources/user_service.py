@@ -1,51 +1,36 @@
 import os
 from datetime import datetime, timedelta, timezone
-
 import jwt
-from werkzeug.security import check_password_hash, generate_password_hash
-
+from werkzeug.security import generate_password_hash, check_password_hash
 from ticket_management_system.extensions import db
-from ticket_management_system.models import Roles, User
+from ticket_management_system.models import User, Roles
+from ticket_management_system.exceptions import (
+    InvalidCredentialsError,
+    UserNotFoundError,
+    TokenExpiredError,
+    InvalidTokenError,
+    EmailAlreadyExistsError,
+    InvalidRoleError
+)
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dummy-secret-key-for-development")
-JWT_ALGORITHM = "HS256"
+# JWT Configuration
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'dummy-secret-key-for-development')
+JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24
 
 
 class UserService:
     @staticmethod
-    def validate_registration_data(data):
-        if not data:
-            return False, "Request body must be JSON"
-
-        required_fields = ["firstname", "lastname", "email", "password"]
-        missing_fields = [field for field in required_fields if field not in data]
-
-        if missing_fields:
-            return False, f'Missing required fields: {", ".join(missing_fields)}'
-
-        if len(data["firstname"]) > 30:
-            return False, "firstname must be 30 characters or less"
-        if len(data["lastname"]) > 30:
-            return False, "lastname must be 30 characters or less"
-        if len(data["email"]) > 30:
-            return False, "email must be 30 characters or less"
-        if len(data["password"]) < 6:
-            return False, "password must be at least 6 characters"
-
-        return True, None
-
-    @staticmethod
     def validate_role(role_str):
         if not role_str:
-            return Roles.user, None
+            return Roles.user
 
         role_str = role_str.lower()
-        if role_str == "admin":
-            return Roles.admin, None
-        if role_str == "user":
-            return Roles.user, None
-        return None, 'Invalid role. Must be "admin" or "user"'
+        if role_str == 'admin':
+            return Roles.admin
+        if role_str == 'user':
+            return Roles.user
+        raise InvalidRoleError(role_str)
 
     @staticmethod
     def email_exists(email):
@@ -60,7 +45,7 @@ class UserService:
             lastname=lastname,
             email=email,
             password_hash=password_hash,
-            role=role,
+            role=role
         )
 
         db.session.add(new_user)
@@ -71,11 +56,11 @@ class UserService:
     @staticmethod
     def generate_token(user):
         token_payload = {
-            "user_id": str(user.id),
-            "email": user.email,
-            "role": user.role.name,
-            "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
-            "iat": datetime.now(timezone.utc),
+            'user_id': str(user.id),
+            'email': user.email,
+            'role': user.role.name,
+            'exp': datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS),
+            'iat': datetime.now(timezone.utc)
         }
 
         token = jwt.encode(token_payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
@@ -84,21 +69,21 @@ class UserService:
     @staticmethod
     def format_user_response(user, include_token=False):
         response = {
-            "user": {
-                "id": str(user.id),
-                "firstname": user.firstname,
-                "lastname": user.lastname,
-                "email": user.email,
-                "role": user.role.name,
-                "created_at": user.created_at.isoformat(),
+            'user': {
+                'id': str(user.id),
+                'firstname': user.firstname,
+                'lastname': user.lastname,
+                'email': user.email,
+                'role': user.role.name,
+                'created_at': user.created_at.isoformat()
             }
         }
 
         if include_token:
             token = UserService.generate_token(user)
-            response["token"] = token
-            response["token_type"] = "Bearer"
-            response["expires_in"] = JWT_EXPIRATION_HOURS * 3600
+            response['token'] = token
+            response['token_type'] = 'Bearer'
+            response['expires_in'] = JWT_EXPIRATION_HOURS * 3600  # seconds
 
         return response
 
@@ -107,35 +92,35 @@ class UserService:
         user = User.query.filter_by(email=email).first()
 
         if not user:
-            return None, "Invalid email or password"
+            raise InvalidCredentialsError()
 
         if not check_password_hash(user.password_hash, password):
-            return None, "Invalid email or password"
+            raise InvalidCredentialsError()
 
-        return user, None
+        return user
 
     @staticmethod
     def verify_token(token):
         try:
             import uuid as uuid_lib
-
             payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
 
-            user_id = payload["user_id"]
+            # Convert string UUID to UUID object for database compatibility
+            user_id = payload['user_id']
             if isinstance(user_id, str):
                 user_id = uuid_lib.UUID(user_id)
 
             user = User.query.filter_by(id=user_id).first()
 
             if not user:
-                return None, "User not found"
+                raise UserNotFoundError()
 
-            return user, None
+            return user
 
-        except jwt.ExpiredSignatureError:
-            return None, "Token expired"
-        except jwt.InvalidTokenError:
-            return None, "Invalid token"
+        except jwt.ExpiredSignatureError as exc:
+            raise TokenExpiredError() from exc
+        except jwt.InvalidTokenError as exc:
+            raise InvalidTokenError() from exc
 
     @staticmethod
     def get_user_by_id(user_id):
@@ -143,51 +128,77 @@ class UserService:
 
     @staticmethod
     def get_paginated_users(page=1, per_page=10):
-        if page < 1:
-            page = 1
-        if per_page < 1:
-            per_page = 10
-        if per_page > 100:
-            per_page = 100
+        # Validate pagination parameters
+        page = max(page, 1)
+        per_page = per_page if per_page > 0 else 10  # Default to 10 if invalid
+        per_page = min(per_page, 100)
 
-        pagination = User.query.paginate(page=page, per_page=per_page, error_out=False)
+        # Query users with pagination
+        pagination = User.query.paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
 
-        users_data = [
-            {
-                "id": str(user.id),
-                "firstname": user.firstname,
-                "lastname": user.lastname,
-                "email": user.email,
-                "role": user.role.name,
-                "created_at": user.created_at.isoformat(),
-            }
-            for user in pagination.items
-        ]
+        users_data = [{
+            'id': str(user.id),
+            'firstname': user.firstname,
+            'lastname': user.lastname,
+            'email': user.email,
+            'role': user.role.name,
+            'created_at': user.created_at.isoformat()
+        } for user in pagination.items]
 
         return {
-            "users": users_data,
-            "pagination": {
-                "page": pagination.page,
-                "per_page": pagination.per_page,
-                "total_pages": pagination.pages,
-                "total_items": pagination.total,
-                "has_next": pagination.has_next,
-                "has_prev": pagination.has_prev,
-                "next_page": pagination.next_num if pagination.has_next else None,
-                "prev_page": pagination.prev_num if pagination.has_prev else None,
-            },
+            'users': users_data,
+            'pagination': {
+                'page': pagination.page,
+                'per_page': pagination.per_page,
+                'total_pages': pagination.pages,
+                'total_items': pagination.total,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev,
+                'next_page': pagination.next_num if pagination.has_next else None,
+                'prev_page': pagination.prev_num if pagination.has_prev else None
+            }
         }
 
     @staticmethod
     def format_user_detail(user):
         return {
-            "user": {
-                "id": str(user.id),
-                "firstname": user.firstname,
-                "lastname": user.lastname,
-                "email": user.email,
-                "role": user.role.name,
-                "created_at": user.created_at.isoformat(),
-                "updated_at": user.updated_at.isoformat(),
+            'user': {
+                'id': str(user.id),
+                'firstname': user.firstname,
+                'lastname': user.lastname,
+                'email': user.email,
+                'role': user.role.name,
+                'created_at': user.created_at.isoformat(),
+                'updated_at': user.updated_at.isoformat()
             }
         }
+
+    @staticmethod
+    def update_user_profile(user, firstname=None, lastname=None, email=None, password=None):
+        # Validate email uniqueness if provided
+        if email and email != user.email:
+            if UserService.email_exists(email):
+                raise EmailAlreadyExistsError()
+            user.email = email
+
+        # Update firstname if provided
+        if firstname is not None:
+            user.firstname = firstname
+
+        # Update lastname if provided
+        if lastname is not None:
+            user.lastname = lastname
+
+        # Update password if provided (hash it)
+        if password is not None:
+            user.password_hash = generate_password_hash(password)
+
+        user.updated_at = datetime.now(timezone.utc)
+
+        # Save changes
+        db.session.commit()
+        return user

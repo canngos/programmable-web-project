@@ -16,6 +16,10 @@ class TestFlightServiceAirports:
     def test_get_available_airports_empty_database(self, app):
         """Test getting airports when no flights exist."""
         with app.app_context():
+            # Clean up all flights first
+            Flight.query.delete()
+            db.session.commit()
+
             result = FlightService.get_available_airports()
 
             assert 'airports' in result
@@ -25,12 +29,11 @@ class TestFlightServiceAirports:
 
     def test_get_available_airports_with_flights(self, app, sample_flights):
         """Test getting airports with flights in database."""
-        with app.app_context():
-            result = FlightService.get_available_airports()
+        result = FlightService.get_available_airports()
 
-            assert result['count'] > 0
-            assert isinstance(result['airports'], list)
-            assert len(result['airports']) == result['count']
+        assert result['count'] > 0
+        assert isinstance(result['airports'], list)
+        assert len(result['airports']) == result['count']
 
     def test_get_available_airports_distinct(self, app):
         """Test that airports are unique (no duplicates)."""
@@ -136,32 +139,29 @@ class TestFlightServiceSearch:
 
     def test_search_flights_no_filters(self, app, sample_flights):
         """Test searching without any filters returns all active flights."""
-        with app.app_context():
-            result = FlightService.search_flights()
+        result = FlightService.search_flights()
 
-            assert 'flights' in result
-            assert 'pagination' in result
-            assert isinstance(result['flights'], list)
-            assert result['pagination']['page'] == 1
-            assert result['pagination']['per_page'] == 10
+        assert 'flights' in result
+        assert 'pagination' in result
+        assert isinstance(result['flights'], list)
+        assert result['pagination']['page'] == 1
+        assert result['pagination']['per_page'] == 10
 
     def test_search_flights_by_origin(self, app, sample_flights):
         """Test searching by origin airport."""
-        with app.app_context():
-            result = FlightService.search_flights(origin_airport='JFK')
+        result = FlightService.search_flights(origin_airport='JFK')
 
-            assert len(result['flights']) > 0
-            for flight in result['flights']:
-                assert 'JFK' in flight['origin_airport'].upper()
+        assert len(result['flights']) > 0
+        for flight in result['flights']:
+            assert 'JFK' in flight['origin_airport'].upper()
 
     def test_search_flights_by_destination(self, app, sample_flights):
         """Test searching by destination airport."""
-        with app.app_context():
-            result = FlightService.search_flights(destination_airport='LAX')
+        result = FlightService.search_flights(destination_airport='LAX')
 
-            assert len(result['flights']) > 0
-            for flight in result['flights']:
-                assert 'LAX' in flight['destination_airport'].upper()
+        assert len(result['flights']) > 0
+        for flight in result['flights']:
+            assert 'LAX' in flight['destination_airport'].upper()
 
     def test_search_flights_by_origin_and_destination(self, app):
         """Test searching by both origin and destination."""
@@ -246,12 +246,11 @@ class TestFlightServiceSearch:
 
     def test_search_flights_invalid_date_format(self, app, sample_flights):
         """Test that invalid date format doesn't crash, just ignores filter."""
-        with app.app_context():
-            result = FlightService.search_flights(departure_date='invalid-date')
+        result = FlightService.search_flights(departure_date='invalid-date')
 
-            # Should still return results, just ignore the invalid filter
-            assert 'flights' in result
-            assert isinstance(result['flights'], list)
+        # Should still return results, just ignore the invalid filter
+        assert 'flights' in result
+        assert isinstance(result['flights'], list)
 
     def test_search_flights_case_insensitive(self, app):
         """Test that airport search is case-insensitive."""
@@ -386,65 +385,58 @@ class TestFlightServicePagination:
 
     def test_search_flights_default_pagination(self, app, sample_flights):
         """Test default pagination parameters."""
-        with app.app_context():
-            result = FlightService.search_flights()
+        result = FlightService.search_flights()
 
-            assert result['pagination']['page'] == 1
-            assert result['pagination']['per_page'] == 10
-            assert len(result['flights']) <= 10
+        assert result['pagination']['page'] == 1
+        assert result['pagination']['per_page'] == 10
+        assert len(result['flights']) <= 10
 
     def test_search_flights_custom_page_size(self, app, sample_flights):
         """Test custom page size."""
-        with app.app_context():
-            result = FlightService.search_flights(page=1, per_page=5)
+        result = FlightService.search_flights(page=1, per_page=5)
 
-            assert result['pagination']['per_page'] == 5
-            assert len(result['flights']) <= 5
+        assert result['pagination']['per_page'] == 5
+        assert len(result['flights']) <= 5
 
     def test_search_flights_second_page(self, app, multiple_flights):
         """Test getting second page of results."""
-        with app.app_context():
-            result = FlightService.search_flights(page=2, per_page=3)
+        result = FlightService.search_flights(page=2, per_page=3)
 
-            assert result['pagination']['page'] == 2
-            assert result['pagination']['has_prev'] is True
+        assert result['pagination']['page'] == 2
+        assert result['pagination']['has_prev'] is True
 
     def test_search_flights_invalid_page_defaults_to_one(self, app, sample_flights):
         """Test that invalid page number defaults to 1."""
-        with app.app_context():
-            result = FlightService.search_flights(page=-1)
+        result = FlightService.search_flights(page=-1)
 
-            assert result['pagination']['page'] == 1
+        assert result['pagination']['page'] == 1
 
     def test_search_flights_invalid_per_page_defaults(self, app, sample_flights):
         """Test that invalid per_page defaults to 10."""
-        with app.app_context():
-            result = FlightService.search_flights(per_page=-5)
+        result = FlightService.search_flights(per_page=-5)
 
-            assert result['pagination']['per_page'] == 10
+        assert result['pagination']['per_page'] == 10
 
     def test_search_flights_max_per_page_cap(self, app, sample_flights):
         """Test that per_page is capped at 100."""
-        with app.app_context():
-            result = FlightService.search_flights(per_page=200)
+        result = FlightService.search_flights(per_page=200)
 
-            assert result['pagination']['per_page'] == 100
+        assert result['pagination']['per_page'] == 100
 
     def test_search_flights_pagination_metadata(self, app, multiple_flights):
         """Test pagination metadata is correct."""
-        with app.app_context():
-            result = FlightService.search_flights(page=1, per_page=3)
+        result = FlightService.search_flights(page=1, per_page=3)
 
-            pagination = result['pagination']
-            assert 'total_pages' in pagination
-            assert 'total_items' in pagination
-            assert 'has_next' in pagination
-            assert 'has_prev' in pagination
-            assert 'next_page' in pagination
-            assert 'prev_page' in pagination
+        pagination = result['pagination']
+        assert 'total_pages' in pagination
+        assert 'total_items' in pagination
+        assert 'has_next' in pagination
+        assert 'has_prev' in pagination
+        assert 'next_page' in pagination
+        assert 'prev_page' in pagination
 
-            assert pagination['has_prev'] is False
-            assert pagination['prev_page'] is None
+        assert pagination['has_prev'] is False
+        assert pagination['prev_page'] is None
 
 
 class TestFlightServiceHelpers:
@@ -487,8 +479,12 @@ class TestFlightServiceHelpers:
     def test_format_flight_detail(self, app):
         """Test formatting flight detail."""
         with app.app_context():
+            # Clean up first
+            Flight.query.filter_by(flight_code='TEST_FORMAT').delete(synchronize_session=False)
+            db.session.commit()
+
             flight = Flight(
-                flight_code='AA101',
+                flight_code='TEST_FORMAT',
                 origin_airport='JFK',
                 destination_airport='LAX',
                 departure_time=datetime(2026, 3, 15, 10, 0),
@@ -503,7 +499,7 @@ class TestFlightServiceHelpers:
 
             assert 'flight' in result
             assert result['flight']['id'] == str(flight.id)
-            assert result['flight']['flight_code'] == 'AA101'
+            assert result['flight']['flight_code'] == 'TEST_FORMAT'
             assert result['flight']['origin_airport'] == 'JFK'
             assert result['flight']['destination_airport'] == 'LAX'
             assert 'departure_time' in result['flight']
@@ -523,33 +519,32 @@ class TestFlightServiceResponseFormat:
 
     def test_search_response_structure(self, app, sample_flights):
         """Test that search response has correct structure."""
-        with app.app_context():
-            result = FlightService.search_flights()
+        result = FlightService.search_flights()
 
-            # Check top-level keys
-            assert 'flights' in result
-            assert 'pagination' in result
+        # Check top-level keys
+        assert 'flights' in result
+        assert 'pagination' in result
 
-            # Check flight structure
-            if result['flights']:
-                flight = result['flights'][0]
-                assert 'id' in flight
-                assert 'flight_code' in flight
-                assert 'origin_airport' in flight
-                assert 'destination_airport' in flight
-                assert 'departure_time' in flight
-                assert 'arrival_time' in flight
-                assert 'base_price' in flight
-                assert 'status' in flight
-                assert 'created_at' in flight
+        # Check flight structure
+        if result['flights']:
+            flight = result['flights'][0]
+            assert 'id' in flight
+            assert 'flight_code' in flight
+            assert 'origin_airport' in flight
+            assert 'destination_airport' in flight
+            assert 'departure_time' in flight
+            assert 'arrival_time' in flight
+            assert 'base_price' in flight
+            assert 'status' in flight
+            assert 'created_at' in flight
 
-            # Check pagination structure
-            pagination = result['pagination']
-            assert 'page' in pagination
-            assert 'per_page' in pagination
-            assert 'total_pages' in pagination
-            assert 'total_items' in pagination
-            assert 'has_next' in pagination
-            assert 'has_prev' in pagination
-            assert 'next_page' in pagination
-            assert 'prev_page' in pagination
+        # Check pagination structure
+        pagination = result['pagination']
+        assert 'page' in pagination
+        assert 'per_page' in pagination
+        assert 'total_pages' in pagination
+        assert 'total_items' in pagination
+        assert 'has_next' in pagination
+        assert 'has_prev' in pagination
+        assert 'next_page' in pagination
+        assert 'prev_page' in pagination

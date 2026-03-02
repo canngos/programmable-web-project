@@ -217,6 +217,11 @@ def multiple_flights(app):
         from decimal import Decimal
         from datetime import datetime, timedelta
 
+        # Clean up any existing flights with these codes first
+        flight_codes = [f'FL{i+100}' for i in range(10)]
+        Flight.query.filter(Flight.flight_code.in_(flight_codes)).delete(synchronize_session=False)
+        db.session.commit()
+
         flights = []
         base_date = datetime(2026, 3, 15)
 

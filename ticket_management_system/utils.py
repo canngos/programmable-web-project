@@ -4,6 +4,11 @@ from flask import jsonify, request
 
 from ticket_management_system.models import Roles
 from ticket_management_system.resources.user_service import UserService
+from ticket_management_system.exceptions import (
+    TokenExpiredError,
+    InvalidTokenError,
+    UserNotFoundError
+)
 
 
 def token_required(f):
@@ -37,16 +42,25 @@ def token_required(f):
                 401,
             )
 
-        current_user, error = UserService.verify_token(token)
-
-        if error:
+        # Verify token using service (now raises exceptions instead of returning tuple)
+        try:
+            current_user = UserService.verify_token(token)
+        except TokenExpiredError as e:
             return (
                 jsonify(
                     {
-                        "error": "Token expired"
-                        if "expired" in error.lower()
-                        else "Invalid token",
-                        "message": error,
+                        "error": "Token expired",
+                        "message": e.message,
+                    }
+                ),
+                401,
+            )
+        except (InvalidTokenError, UserNotFoundError) as e:
+            return (
+                jsonify(
+                    {
+                        "error": "Invalid token",
+                        "message": e.message,
                     }
                 ),
                 401,

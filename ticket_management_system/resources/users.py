@@ -1,89 +1,275 @@
+from flask import Blueprint, request, jsonify
+from functools import wraps
 from flasgger import swag_from
-from flask import Blueprint, jsonify, request
-
+from marshmallow import ValidationError
 from ticket_management_system.extensions import db
+from ticket_management_system.models import Roles
 from ticket_management_system.resources.user_service import UserService
-from ticket_management_system.utils import admin_required, token_required
+from ticket_management_system.static.schema.user_schemas import UserProfileUpdateSchema, UserRegistrationSchema
+from ticket_management_system.exceptions import (
+    InvalidCredentialsError,
+    TokenExpiredError,
+    InvalidTokenError,
+    UserNotFoundError,
+    EmailAlreadyExistsError,
+    InvalidRoleError
+)
 
-user_bp = Blueprint("users", __name__, url_prefix="/api/users")
+user_bp = Blueprint('users', __name__, url_prefix='/api/users')
 
 
-@user_bp.route("/register", methods=["POST"])
-@swag_from("../swagger_specs/user_register.yml")
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+
+        # Get token from Authorization header
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            try:
+                # Expected format: "Bearer <token>"
+                token = auth_header.split(" ")[1]
+            except IndexError:
+                return jsonify({
+                    'error': 'Invalid authorization header format',
+                    'message': 'Use format: Bearer <token>'
+                }), 401
+
+        if not token:
+            return jsonify({
+                'error': 'Authentication required',
+                'message': 'No token provided'
+            }), 401
+
+        # Verify token using service
+        try:
+            current_user = UserService.verify_token(token)
+        except TokenExpiredError as e:
+            return jsonify({
+                'error': 'Token expired',
+                'message': e.message
+            }), 401
+        except (InvalidTokenError, UserNotFoundError) as e:
+            return jsonify({
+                'error': 'Invalid token',
+                'message': e.message
+            }), 401
+
+        # Pass current_user to the route
+        return f(current_user, *args, **kwargs)
+
+    return decorated
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(current_user, *args, **kwargs):
+        if current_user.role != Roles.admin:
+            return jsonify({
+                'error': 'Forbidden',
+                'message': 'Admin privileges required'
+            }), 403
+
+        return f(current_user, *args, **kwargs)
+
+    return decorated
+
+
+@user_bp.route('/register', methods=['POST'])
+@swag_from('../swagger_specs/user_register.yml')
 def register():
     try:
-        data = request.get_json(force=True, silent=True)
+        # Get JSON data - handle empty body
+        try:
+            json_data = request.get_json()
+        except Exception:
+            return jsonify({
+                'error': 'Bad Request',
+                'message': 'Request body must be valid JSON'
+            }), 400
 
-        is_valid, error_msg = UserService.validate_registration_data(data)
-        if not is_valid:
-            return jsonify({"error": "Bad Request", "message": error_msg}), 400
+        # Check if request body is empty or None
+        if json_data is None:
+            return jsonify({
+                'error': 'Bad Request',
+                'message': 'Request body must be JSON'
+            }), 400
 
-        if UserService.email_exists(data["email"]):
-            return jsonify({"error": "Conflict", "message": "Email already registered"}), 409
+        # Validate request data using Marshmallow schema
+        schema = UserRegistrationSchema()
+        validated_data = schema.load(json_data)
 
-        role, error_msg = UserService.validate_role(data.get("role"))
-        if error_msg:
-            return jsonify({"error": "Bad Request", "message": error_msg}), 400
+        # Check if email already exists
+        if UserService.email_exists(validated_data['email']):
+            return jsonify({
+                'error': 'Conflict',
+                'message': 'Email already registered'
+            }), 409
 
+        # Validate and convert role
+        role = UserService.validate_role(validated_data.get('role'))
+
+        # Create new user
         new_user = UserService.create_user(
-            firstname=data["firstname"],
-            lastname=data["lastname"],
-            email=data["email"],
-            password=data["password"],
-            role=role,
+            firstname=validated_data['firstname'],
+            lastname=validated_data['lastname'],
+            email=validated_data['email'],
+            password=validated_data['password'],
+            role=role
         )
 
+        # Format response with token
         response = UserService.format_user_response(new_user, include_token=True)
-        response["message"] = "User registered successfully"
+        response['message'] = 'User registered successfully'
 
         return jsonify(response), 201
 
-    except Exception as exc:
+    except ValidationError as err:
+        return jsonify({
+            'error': 'Bad Request',
+            'message': 'Validation failed',
+            'errors': err.messages
+        }), 400
+
+    except InvalidRoleError as e:
+        return jsonify({
+            'error': 'Bad Request',
+            'message': e.message
+        }), 409
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
         db.session.rollback()
-        return jsonify({"error": "Internal Server Error", "message": str(exc)}), 500
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': str(e)
+        }), 500
 
 
-@user_bp.route("/login", methods=["POST"])
-@swag_from("../swagger_specs/user_login.yml")
+@user_bp.route('/login', methods=['POST'])
+@swag_from('../swagger_specs/user_login.yml')
 def login():
     try:
         data = request.get_json(force=True, silent=True)
 
+        # Validate required fields
         if not data:
-            return jsonify({"error": "Bad Request", "message": "Request body must be JSON"}), 400
+            return jsonify({
+                'error': 'Bad Request',
+                'message': 'Request body must be JSON'
+            }), 400
 
-        if "email" not in data or "password" not in data:
-            return jsonify({"error": "Bad Request", "message": "Email and password are required"}), 400
+        if 'email' not in data or 'password' not in data:
+            return jsonify({
+                'error': 'Bad Request',
+                'message': 'Email and password are required'
+            }), 400
 
-        user, error_msg = UserService.authenticate_user(data["email"], data["password"])
+        # Authenticate user
+        user = UserService.authenticate_user(data['email'], data['password'])
 
-        if error_msg:
-            return jsonify({"error": "Unauthorized", "message": error_msg}), 401
-
+        # Format response with token
         response = UserService.format_user_response(user, include_token=True)
-        response["message"] = "Login successful"
+        response['message'] = 'Login successful'
 
         return jsonify(response), 200
 
-    except Exception as exc:
-        return jsonify({"error": "Internal Server Error", "message": str(exc)}), 500
+    except InvalidCredentialsError as e:
+        return jsonify({
+            'error': 'Unauthorized',
+            'message': e.message
+        }), 401
+
+    except Exception as e:
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': str(e)
+        }), 500
 
 
-@user_bp.route("/me", methods=["GET"])
+@user_bp.route('/me', methods=['GET'])
 @token_required
-@swag_from("../swagger_specs/user_me.yml")
+@swag_from('../swagger_specs/user_me.yml')
 def get_current_user(current_user):
     response = UserService.format_user_detail(current_user)
     return jsonify(response), 200
 
 
-@user_bp.route("/", methods=["GET"])
+@user_bp.route('/me', methods=['PATCH'])
+@token_required
+@swag_from('../swagger_specs/user_update_me.yml')
+def update_current_user(current_user):
+    try:
+        # Get JSON data - handle empty body
+        try:
+            json_data = request.get_json()
+        except Exception:
+            return jsonify({
+                'error': 'Bad Request',
+                'message': 'Request body must be valid JSON'
+            }), 400
+
+        # Check if request body is empty or None
+        if json_data is None:
+            return jsonify({
+                'error': 'Bad Request',
+                'message': 'Request body must be JSON'
+            }), 400
+
+        # Validate request data using Marshmallow schema
+        schema = UserProfileUpdateSchema()
+        validated_data = schema.load(json_data)
+
+        # At least one field must be provided
+        if not validated_data:
+            return jsonify({
+                'error': 'Bad Request',
+                'message': 'At least one field (firstname, lastname, email, or password) must be provided'
+            }), 400
+
+        # Update user profile
+        updated_user = UserService.update_user_profile(
+            user=current_user,
+            firstname=validated_data.get('firstname'),
+            lastname=validated_data.get('lastname'),
+            email=validated_data.get('email'),
+            password=validated_data.get('password')
+        )
+
+        # Format response
+        response = UserService.format_user_detail(updated_user)
+        response['message'] = 'Profile updated successfully'
+
+        return jsonify(response), 200
+
+    except ValidationError as err:
+        return jsonify({
+            'error': 'Bad Request',
+            'message': 'Validation failed',
+            'errors': err.messages
+        }), 400
+
+    except EmailAlreadyExistsError as e:
+        return jsonify({
+            'error': 'Conflict',
+            'message': e.message
+        }), 409
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        db.session.rollback()
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': str(e)
+        }), 500
+
+
+@user_bp.route('/', methods=['GET'])
 @token_required
 @admin_required
-@swag_from("../swagger_specs/user_list.yml")
-def get_all_users(current_user):
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 10, type=int)
+@swag_from('../swagger_specs/user_list.yml')
+def get_all_users(_current_user):
+    # Get pagination parameters from query string
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
 
     result = UserService.get_paginated_users(page, per_page)
 
