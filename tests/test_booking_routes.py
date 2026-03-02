@@ -413,3 +413,672 @@ class TestSeatAvailabilityEndpoint:
 
             db.session.delete(flight)
             db.session.commit()
+
+
+class TestUpdateBookingEndpoint:
+    """Test PUT /api/bookings/<booking_id> endpoint."""
+
+    def test_update_booking_success_by_owner(self, client, app, test_user, auth_headers):
+        """Owner can successfully update their booking status."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT110")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P99999999",
+                        "seat_num": "10A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            response = client.put(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers,
+                json={"booking_status": "paid"}
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["message"] == "Booking updated successfully"
+            assert data["booking"]["booking_status"] == "paid"
+            assert data["booking"]["id"] == str(booking.id)
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_update_booking_booked_to_cancelled(self, client, app, test_user, auth_headers):
+        """Update booking from booked to cancelled."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT111")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P10101010",
+                        "seat_num": "11A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            response = client.put(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers,
+                json={"booking_status": "cancelled"}
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["booking"]["booking_status"] == "cancelled"
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_update_booking_paid_to_refunded(self, client, app, test_user, auth_headers):
+        """Update booking from paid to refunded."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT112")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P11111112",
+                        "seat_num": "12A",
+                        "seat_class": "economy"
+                    }
+                ],
+                booking_status="paid"
+            )
+
+            response = client.put(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers,
+                json={"booking_status": "refunded"}
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["booking"]["booking_status"] == "refunded"
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_update_booking_cannot_update_cancelled(self, client, app, test_user, auth_headers):
+        """Cannot update a booking that is already cancelled."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT113")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P12121212",
+                        "seat_num": "13A",
+                        "seat_class": "economy"
+                    }
+                ],
+                booking_status="cancelled"
+            )
+
+            response = client.put(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers,
+                json={"booking_status": "paid"}
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert data["error"] == "Bad Request"
+            assert "cancelled" in data["message"].lower()
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_update_booking_cannot_update_refunded(self, client, app, test_user, auth_headers):
+        """Cannot update a booking that is already refunded."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT114")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P13131313",
+                        "seat_num": "14A",
+                        "seat_class": "economy"
+                    }
+                ],
+                booking_status="refunded"
+            )
+
+            response = client.put(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers,
+                json={"booking_status": "paid"}
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert data["error"] == "Bad Request"
+            assert "refunded" in data["message"].lower()
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_update_booking_invalid_status(self, client, app, test_user, auth_headers):
+        """Invalid booking_status should fail validation."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT115")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P14141414",
+                        "seat_num": "15A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            response = client.put(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers,
+                json={"booking_status": "invalid_status"}
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert data["error"] == "Bad Request"
+            assert "errors" in data
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_update_booking_missing_status(self, client, app, test_user, auth_headers):
+        """booking_status is required in request body."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT116")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P15151515",
+                        "seat_num": "16A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            response = client.put(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers,
+                json={}
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert data["error"] == "Bad Request"
+            assert "errors" in data
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_update_booking_not_found(self, client, auth_headers):
+        """Update non-existent booking returns 404."""
+        booking_id = "00000000-0000-0000-0000-000000000002"
+        response = client.put(
+            f"/api/bookings/{booking_id}",
+            headers=auth_headers,
+            json={"booking_status": "paid"}
+        )
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert data["error"] == "Not Found"
+
+    def test_update_booking_forbidden_for_non_owner(self, client, app, test_user):
+        """Non-owner cannot update another user's booking."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT117")
+            db.session.add(flight)
+            db.session.commit()
+
+            owner = User(
+                firstname="Booking",
+                lastname="Owner",
+                email="owner.update@test.com",
+                password_hash=generate_password_hash("password123"),
+                role=Roles.user
+            )
+            db.session.add(owner)
+            db.session.commit()
+            db.session.refresh(owner)
+
+            booking, _ = BookingService.book_tickets(
+                user_id=owner.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Owner Passenger",
+                        "passenger_passport_num": "P16161616",
+                        "seat_num": "17A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            token = UserService.generate_token(test_user)
+            headers = {"Authorization": f"Bearer {token}"}
+            response = client.put(
+                f"/api/bookings/{booking.id}",
+                headers=headers,
+                json={"booking_status": "paid"}
+            )
+
+            assert response.status_code == 403
+            data = response.get_json()
+            assert data["error"] == "Forbidden"
+
+            db.session.delete(owner)
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_update_booking_admin_can_update_any(self, client, app, test_user, admin_headers):
+        """Admin can update any user's booking."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT118")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "User Passenger",
+                        "passenger_passport_num": "P17171717",
+                        "seat_num": "18A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            response = client.put(
+                f"/api/bookings/{booking.id}",
+                headers=admin_headers,
+                json={"booking_status": "paid"}
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["booking"]["booking_status"] == "paid"
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_update_booking_requires_auth(self, client, app, test_user):
+        """Update endpoint requires authentication."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT119")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P18181818",
+                        "seat_num": "19A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            response = client.put(
+                f"/api/bookings/{booking.id}",
+                json={"booking_status": "paid"}
+            )
+
+            assert response.status_code == 401
+            data = response.get_json()
+            assert data["error"] == "Authentication required"
+
+            db.session.delete(flight)
+            db.session.commit()
+
+
+class TestCancelBookingEndpoint:
+    """Test DELETE /api/bookings/<booking_id> endpoint."""
+
+    def test_cancel_booking_success_by_owner(self, client, app, test_user, auth_headers):
+        """Owner can successfully cancel their booking."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT120")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P19191919",
+                        "seat_num": "20A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            response = client.delete(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["message"] == "Booking cancelled successfully"
+            assert data["booking"]["booking_status"] == "cancelled"
+            assert data["booking"]["id"] == str(booking.id)
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_cancel_booking_paid_status(self, client, app, test_user, auth_headers):
+        """Can cancel a paid booking."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT121")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P20202020",
+                        "seat_num": "21A",
+                        "seat_class": "economy"
+                    }
+                ],
+                booking_status="paid"
+            )
+
+            response = client.delete(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["booking"]["booking_status"] == "cancelled"
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_cancel_booking_already_cancelled(self, client, app, test_user, auth_headers):
+        """Cannot cancel an already cancelled booking."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT122")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P21212121",
+                        "seat_num": "22A",
+                        "seat_class": "economy"
+                    }
+                ],
+                booking_status="cancelled"
+            )
+
+            response = client.delete(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert data["error"] == "Bad Request"
+            assert "already cancelled" in data["message"].lower()
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_cancel_booking_cannot_cancel_refunded(self, client, app, test_user, auth_headers):
+        """Cannot cancel a refunded booking."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT123")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P22222222",
+                        "seat_num": "23A",
+                        "seat_class": "economy"
+                    }
+                ],
+                booking_status="refunded"
+            )
+
+            response = client.delete(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert data["error"] == "Bad Request"
+            assert "refunded" in data["message"].lower()
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_cancel_booking_not_found(self, client, auth_headers):
+        """Cancel non-existent booking returns 404."""
+        booking_id = "00000000-0000-0000-0000-000000000003"
+        response = client.delete(
+            f"/api/bookings/{booking_id}",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert data["error"] == "Not Found"
+
+    def test_cancel_booking_forbidden_for_non_owner(self, client, app, test_user):
+        """Non-owner cannot cancel another user's booking."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT124")
+            db.session.add(flight)
+            db.session.commit()
+
+            owner = User(
+                firstname="Booking",
+                lastname="Owner",
+                email="owner.cancel@test.com",
+                password_hash=generate_password_hash("password123"),
+                role=Roles.user
+            )
+            db.session.add(owner)
+            db.session.commit()
+            db.session.refresh(owner)
+
+            booking, _ = BookingService.book_tickets(
+                user_id=owner.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Owner Passenger",
+                        "passenger_passport_num": "P23232323",
+                        "seat_num": "24A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            token = UserService.generate_token(test_user)
+            headers = {"Authorization": f"Bearer {token}"}
+            response = client.delete(
+                f"/api/bookings/{booking.id}",
+                headers=headers
+            )
+
+            assert response.status_code == 403
+            data = response.get_json()
+            assert data["error"] == "Forbidden"
+
+            db.session.delete(owner)
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_cancel_booking_admin_can_cancel_any(self, client, app, test_user, admin_headers):
+        """Admin can cancel any user's booking."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT125")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "User Passenger",
+                        "passenger_passport_num": "P24242424",
+                        "seat_num": "25A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            response = client.delete(
+                f"/api/bookings/{booking.id}",
+                headers=admin_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["booking"]["booking_status"] == "cancelled"
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_cancel_booking_requires_auth(self, client, app, test_user):
+        """Cancel endpoint requires authentication."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT126")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P25252525",
+                        "seat_num": "26A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            response = client.delete(f"/api/bookings/{booking.id}")
+
+            assert response.status_code == 401
+            data = response.get_json()
+            assert data["error"] == "Authentication required"
+
+            db.session.delete(flight)
+            db.session.commit()
+
+    def test_cancel_booking_updates_timestamp(self, client, app, test_user, auth_headers):
+        """Cancelling a booking updates the updated_at timestamp."""
+        with app.app_context():
+            flight = _create_test_flight(code="RT127")
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test Passenger",
+                        "passenger_passport_num": "P26262626",
+                        "seat_num": "27A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            original_updated_at = booking.updated_at
+
+            import time
+            time.sleep(0.1)
+
+            response = client.delete(
+                f"/api/bookings/{booking.id}",
+                headers=auth_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+
+            # Parse timestamps and compare
+            from datetime import datetime
+            response_updated_at = datetime.fromisoformat(data["booking"]["updated_at"])
+            assert response_updated_at > original_updated_at
+
+            db.session.delete(flight)
+            db.session.commit()
+

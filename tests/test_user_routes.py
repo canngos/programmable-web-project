@@ -76,7 +76,10 @@ class TestRegisterEndpoint:
         assert response.status_code == 400
         data = response.get_json()
         assert data['error'] == 'Bad Request'
-        assert 'Missing required fields' in data['message']
+        assert data['message'] == 'Validation failed'
+        assert 'errors' in data
+        assert 'lastname' in data['errors']
+        assert 'password' in data['errors']
 
     def test_register_empty_body(self, client):
         """Test registration with empty request body."""
@@ -116,7 +119,9 @@ class TestRegisterEndpoint:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert 'firstname must be 30 characters or less' in data['message']
+        assert data['message'] == 'Validation failed'
+        assert 'errors' in data
+        assert 'firstname' in data['errors']
 
     def test_register_password_too_short(self, client):
         """Test registration with password too short."""
@@ -130,7 +135,9 @@ class TestRegisterEndpoint:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert 'password must be at least 6 characters' in data['message']
+        assert data['message'] == 'Validation failed'
+        assert 'errors' in data
+        assert 'password' in data['errors']
 
     def test_register_invalid_role(self, client):
         """Test registration with invalid role."""
@@ -145,7 +152,10 @@ class TestRegisterEndpoint:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert 'Invalid role' in data['message']
+        # Invalid role is caught by Marshmallow schema validation
+        assert data['message'] == 'Validation failed'
+        assert 'errors' in data
+        assert 'role' in data['errors']
 
 
 class TestLoginEndpoint:
@@ -453,3 +463,401 @@ class TestResponseFormats:
         with app.app_context():
             response = client.get('/api/users/me', headers=auth_headers)
             assert response.content_type == 'application/json'
+
+
+class TestUpdateCurrentUserEndpoint:
+    """Test PATCH /api/users/me endpoint."""
+
+    def test_update_firstname_only(self, client, auth_headers):
+        """Test successfully updating only the firstname field."""
+        response = client.patch('/api/users/me',
+            json={'firstname': 'UpdatedFirst'},
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['message'] == 'Profile updated successfully'
+        assert data['user']['firstname'] == 'UpdatedFirst'
+        assert 'user' in data
+        assert 'id' in data['user']
+
+    def test_update_lastname_only(self, client, auth_headers):
+        """Test successfully updating only the lastname field."""
+        response = client.patch('/api/users/me',
+            json={'lastname': 'UpdatedLastName'},
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['message'] == 'Profile updated successfully'
+        assert data['user']['lastname'] == 'UpdatedLastName'
+
+    def test_update_email_to_unique_value(self, client, auth_headers):
+        """Test successfully updating email to a unique value."""
+        new_email = 'unique_new_email@example.com'
+        response = client.patch('/api/users/me',
+            json={'email': new_email},
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['user']['email'] == new_email
+
+    def test_update_password_only(self, client, auth_headers):
+        """Test successfully updating password."""
+        response = client.patch('/api/users/me',
+            json={'password': 'newSecurePassword123'},
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['message'] == 'Profile updated successfully'
+        # Password hash should not be in response
+        assert 'password' not in data['user']
+        assert 'password_hash' not in data['user']
+
+    def test_update_multiple_fields_simultaneously(self, client, auth_headers):
+        """Test updating multiple fields in a single request."""
+        update_data = {
+            'firstname': 'MultiFirst',
+            'lastname': 'MultiLast',
+            'email': 'multi_update@example.com'
+        }
+        response = client.patch('/api/users/me',
+            json=update_data,
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['user']['firstname'] == 'MultiFirst'
+        assert data['user']['lastname'] == 'MultiLast'
+        assert data['user']['email'] == 'multi_update@example.com'
+
+    def test_update_all_fields_together(self, client, auth_headers):
+        """Test updating all allowed fields together."""
+        update_data = {
+            'firstname': 'AllFirst',
+            'lastname': 'AllLast',
+            'email': 'all_fields@example.com',
+            'password': 'newPassword123'
+        }
+        response = client.patch('/api/users/me',
+            json=update_data,
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['user']['firstname'] == 'AllFirst'
+        assert data['user']['lastname'] == 'AllLast'
+        assert data['user']['email'] == 'all_fields@example.com'
+
+    def test_update_with_empty_json_object(self, client, auth_headers):
+        """Test update with empty JSON object returns 400."""
+        response = client.patch('/api/users/me',
+            json={},
+            headers=auth_headers)
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['error'] == 'Bad Request'
+
+    def test_update_with_null_body(self, client, auth_headers):
+        """Test update with null/None body returns 400."""
+        response = client.patch('/api/users/me',
+            data='',
+            content_type='application/json',
+            headers=auth_headers)
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['error'] == 'Bad Request'
+        assert 'message' in data
+
+    def test_update_with_invalid_json(self, client, auth_headers):
+        """Test update with malformed JSON returns 400."""
+        response = client.patch('/api/users/me',
+            data='{"invalid": json}',
+            content_type='application/json',
+            headers=auth_headers)
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['error'] == 'Bad Request'
+
+    def test_update_email_to_existing_email(self, client, auth_headers, admin_user):
+        """Test updating email to one already taken by another user returns 409."""
+        response = client.patch('/api/users/me',
+            json={'email': admin_user.email},
+            headers=auth_headers)
+
+        assert response.status_code == 409
+        data = response.get_json()
+        assert data['error'] == 'Conflict'
+        assert 'already in use' in data['message'].lower()
+
+    def test_update_firstname_exceeds_max_length(self, client, auth_headers):
+        """Test firstname validation when exceeding 30 characters."""
+        response = client.patch('/api/users/me',
+            json={'firstname': 'a' * 31},
+            headers=auth_headers)
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['message'] == 'Validation failed'
+        assert 'errors' in data
+        assert 'firstname' in data['errors']
+
+    def test_update_lastname_exceeds_max_length(self, client, auth_headers):
+        """Test lastname validation when exceeding 30 characters."""
+        response = client.patch('/api/users/me',
+            json={'lastname': 'b' * 31},
+            headers=auth_headers)
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['message'] == 'Validation failed'
+        assert 'errors' in data
+        assert 'lastname' in data['errors']
+
+    def test_update_email_exceeds_max_length(self, client, auth_headers):
+        """Test email validation when exceeding 255 characters."""
+        long_email = 'a' * 250 + '@example.com'  # Total > 255
+        response = client.patch('/api/users/me',
+            json={'email': long_email},
+            headers=auth_headers)
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['message'] == 'Validation failed'
+        assert 'errors' in data
+        assert 'email' in data['errors']
+
+    def test_update_password_below_minimum_length(self, client, auth_headers):
+        """Test password validation when below 6 characters."""
+        response = client.patch('/api/users/me',
+            json={'password': '12345'},
+            headers=auth_headers)
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['message'] == 'Validation failed'
+        assert 'errors' in data
+        assert 'password' in data['errors']
+
+    def test_update_firstname_with_only_whitespace(self, client, auth_headers):
+        """Test firstname validation rejects whitespace-only values."""
+        response = client.patch('/api/users/me',
+            json={'firstname': '   '},
+            headers=auth_headers)
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['message'] == 'Validation failed'
+        assert 'errors' in data
+        assert 'firstname' in data['errors']
+
+    def test_update_lastname_with_only_whitespace(self, client, auth_headers):
+        """Test lastname validation rejects whitespace-only values."""
+        response = client.patch('/api/users/me',
+            json={'lastname': '   '},
+            headers=auth_headers)
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data['message'] == 'Validation failed'
+        assert 'errors' in data
+        assert 'lastname' in data['errors']
+
+    def test_update_email_with_invalid_format(self, client, auth_headers):
+        """Test email validation rejects invalid email formats."""
+        invalid_emails = [
+            'not-an-email',
+            'missing@domain',
+            '@example.com',
+            'user@',
+            'user space@example.com'
+        ]
+
+        for invalid_email in invalid_emails:
+            response = client.patch('/api/users/me',
+                json={'email': invalid_email},
+                headers=auth_headers)
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert 'errors' in data
+            assert 'email' in data['errors']
+
+    def test_update_without_authentication(self, client):
+        """Test update requires authentication token."""
+        response = client.patch('/api/users/me',
+            json={'firstname': 'NewName'})
+
+        assert response.status_code == 401
+        data = response.get_json()
+        assert data['error'] == 'Authentication required'
+
+    def test_update_with_invalid_token(self, client):
+        """Test update rejects invalid authentication token."""
+        response = client.patch('/api/users/me',
+            json={'firstname': 'NewName'},
+            headers={'Authorization': 'Bearer invalid_token_string'})
+
+        assert response.status_code == 401
+        data = response.get_json()
+        assert data['error'] == 'Invalid token'
+
+    def test_update_with_expired_token(self, client, test_user):
+        """Test update rejects expired authentication token."""
+        import jwt
+        import os
+        from datetime import datetime, timedelta, timezone
+
+        # Create expired token
+        secret = os.getenv('JWT_SECRET_KEY', 'dummy-secret-key-for-development')
+        payload = {
+            'user_id': str(test_user.id),
+            'email': test_user.email,
+            'role': test_user.role.name,
+            'exp': datetime.now(timezone.utc) - timedelta(hours=1),
+            'iat': datetime.now(timezone.utc) - timedelta(hours=2)
+        }
+        expired_token = jwt.encode(payload, secret, algorithm='HS256')
+
+        response = client.patch('/api/users/me',
+            json={'firstname': 'NewName'},
+            headers={'Authorization': f'Bearer {expired_token}'})
+
+        assert response.status_code == 401
+        data = response.get_json()
+        assert data['error'] == 'Token expired'
+
+    def test_update_response_contains_all_required_fields(self, client, auth_headers):
+        """Test successful update response includes all expected fields."""
+        response = client.patch('/api/users/me',
+            json={'firstname': 'TestField'},
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        # Check top-level response structure
+        assert 'message' in data
+        assert 'user' in data
+
+        # Check user object fields
+        user_data = data['user']
+        required_fields = ['id', 'firstname', 'lastname', 'email', 'role', 'created_at', 'updated_at']
+        for field in required_fields:
+            assert field in user_data, f"Missing required field: {field}"
+
+        # Ensure sensitive fields are NOT included
+        assert 'password' not in user_data
+        assert 'password_hash' not in user_data
+
+    def test_update_preserves_unchanged_fields(self, client, auth_headers, test_user):
+        """Test updating one field doesn't modify other fields."""
+        # Store original values
+        original_lastname = test_user.lastname
+        original_email = test_user.email
+        original_role = test_user.role
+
+        # Update only firstname
+        response = client.patch('/api/users/me',
+            json={'firstname': 'OnlyFirstChanged'},
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+
+        # Verify only firstname changed
+        assert data['user']['firstname'] == 'OnlyFirstChanged'
+        assert data['user']['lastname'] == original_lastname
+        assert data['user']['email'] == original_email
+        assert data['user']['role'] == original_role.name
+
+    def test_update_updates_timestamp(self, client, auth_headers, test_user):
+        """Test that update modifies the updated_at timestamp."""
+        import time
+
+        # Get original updated_at
+        original_updated_at = test_user.updated_at
+
+        # Wait a moment and update
+        time.sleep(0.1)
+
+        response = client.patch('/api/users/me',
+            json={'firstname': 'TimestampTest'},
+            headers=auth_headers)
+
+        assert response.status_code == 200
+
+        # Refresh user from database
+        db.session.refresh(test_user)
+
+        # Verify updated_at changed
+        assert test_user.updated_at > original_updated_at
+
+    def test_update_can_keep_same_email(self, client, auth_headers, test_user):
+        """Test user can update other fields while keeping the same email."""
+        # Update firstname but keep same email
+        response = client.patch('/api/users/me',
+            json={
+                'firstname': 'NewFirst',
+                'email': test_user.email  # Same email
+            },
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['user']['firstname'] == 'NewFirst'
+        assert data['user']['email'] == test_user.email
+
+    def test_update_firstname_minimum_length(self, client, auth_headers):
+        """Test firstname accepts minimum valid length."""
+        response = client.patch('/api/users/me',
+            json={'firstname': 'A'},
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['user']['firstname'] == 'A'
+
+    def test_update_password_minimum_length(self, client, auth_headers):
+        """Test password accepts minimum valid length of 6 characters."""
+        response = client.patch('/api/users/me',
+            json={'password': '123456'},
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['message'] == 'Profile updated successfully'
+
+    def test_update_with_special_characters_in_name(self, client, auth_headers):
+        """Test update accepts names with special characters."""
+        response = client.patch('/api/users/me',
+            json={
+                'firstname': "O'Brien",
+                'lastname': 'Smith-Jones'
+            },
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['user']['firstname'] == "O'Brien"
+        assert data['user']['lastname'] == 'Smith-Jones'
+
+    def test_update_with_unicode_characters(self, client, auth_headers):
+        """Test update accepts unicode characters in names."""
+        response = client.patch('/api/users/me',
+            json={
+                'firstname': 'José',
+                'lastname': 'Müller'
+            },
+            headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['user']['firstname'] == 'José'
+        assert data['user']['lastname'] == 'Müller'
+

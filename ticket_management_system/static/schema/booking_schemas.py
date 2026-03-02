@@ -36,3 +36,9 @@ class SeatAvailabilityQuerySchema(Schema):
     flight_id = fields.UUID(required=True)
     seat_num = fields.Str(required=True, validate=validate.Length(min=1, max=4))
 
+
+class UpdateBookingSchema(Schema):
+    booking_status = fields.Str(
+        required=True,
+        validate=validate.OneOf(["booked", "paid", "cancelled", "refunded"]),
+    )

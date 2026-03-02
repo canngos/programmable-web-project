@@ -1,0 +1,91 @@
+summary: Cancel booking
+description: Cancel an existing booking by setting its status to cancelled. Only the booking owner or admin can cancel.
+tags:
+  - Bookings
+parameters:
+  - name: booking_id
+    in: path
+    required: true
+    schema:
+      type: string
+      format: uuid
+    description: The unique identifier of the booking to cancel
+security:
+  - Bearer: []
+responses:
+  200:
+    description: Booking cancelled successfully
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: Booking cancelled successfully
+            booking:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                user_id:
+                  type: string
+                  format: uuid
+                flight_id:
+                  type: string
+                  format: uuid
+                total_price:
+                  type: string
+                  example: "599.99"
+                booking_status:
+                  type: string
+                  example: cancelled
+                created_at:
+                  type: string
+                  format: date-time
+                updated_at:
+                  type: string
+                  format: date-time
+                tickets:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      passenger_name:
+                        type: string
+                      passenger_passport_num:
+                        type: string
+                      seat_num:
+                        type: string
+                      seat_class:
+                        type: string
+                      price:
+                        type: string
+                      created_at:
+                        type: string
+                        format: date-time
+  400:
+    description: Bad request - booking is already cancelled or refunded
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: Bad Request
+            message:
+              type: string
+              example: Booking is already cancelled
+  401:
+    description: Unauthorized - missing or invalid token
+  403:
+    description: Forbidden - not allowed to cancel this booking
+  404:
+    description: Booking not found
+  500:
+    description: Internal server error

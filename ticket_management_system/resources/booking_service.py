@@ -1,17 +1,21 @@
 from decimal import Decimal, ROUND_HALF_UP
 
-from ticket_management_system.exceptions import FlightNotFoundError, SeatUnavailableError
 from ticket_management_system.extensions import db
 from ticket_management_system.models import Booking, BookingStatus, Flight, FlightStatus, SeatClass, Ticket
+from ticket_management_system.exceptions import FlightNotFoundError, SeatUnavailableError
 
 
 class BookingService:
-    BOOKABLE_STATUSES = {FlightStatus.active, FlightStatus.delayed, FlightStatus.started}
+    BOOKABLE_STATUSES = {
+        FlightStatus.active,
+        FlightStatus.delayed,
+        FlightStatus.started
+    }
 
     PRICE_MULTIPLIERS = {
         SeatClass.economy: Decimal("1.0"),
         SeatClass.business: Decimal("2.5"),
-        SeatClass.first: Decimal("4.0"),
+        SeatClass.first: Decimal("4.0")
     }
 
     @staticmethod
@@ -26,12 +30,9 @@ class BookingService:
 
         query = query.order_by(Booking.created_at.desc())
 
-        if page < 1:
-            page = 1
-        if per_page < 1:
-            per_page = 10
-        if per_page > 100:
-            per_page = 100
+        page = max(page, 1)
+        per_page = max(per_page, 1)
+        per_page = min(per_page, 100)
 
         pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         bookings_data = [BookingService.format_booking_summary(booking) for booking in pagination.items]
@@ -46,14 +47,17 @@ class BookingService:
                 "has_next": pagination.has_next,
                 "has_prev": pagination.has_prev,
                 "next_page": pagination.next_num if pagination.has_next else None,
-                "prev_page": pagination.prev_num if pagination.has_prev else None,
-            },
+                "prev_page": pagination.prev_num if pagination.has_prev else None
+            }
         }
 
     @staticmethod
     def get_seat_availability(flight_id, seat_num):
         normalized_seat = BookingService._normalize_seat_number(seat_num)
-        existing_ticket = Ticket.query.filter_by(flight_id=flight_id, seat_num=normalized_seat).first()
+        existing_ticket = Ticket.query.filter_by(
+            flight_id=flight_id,
+            seat_num=normalized_seat
+        ).first()
         return existing_ticket is None
 
     @staticmethod
@@ -86,7 +90,7 @@ class BookingService:
                 user_id=user_id,
                 flight_id=flight.id,
                 total_price=Decimal("0.00"),
-                booking_status=normalized_booking_status,
+                booking_status=normalized_booking_status
             )
             db.session.add(booking)
             db.session.flush()
@@ -96,7 +100,7 @@ class BookingService:
                     booking_id=booking.id,
                     flight=flight,
                     passenger=passenger,
-                    requested_seats=requested_seats,
+                    requested_seats=requested_seats
                 )
                 db.session.add(ticket)
                 created_tickets.append(ticket)
@@ -129,10 +133,10 @@ class BookingService:
                         "seat_num": ticket.seat_num,
                         "seat_class": ticket.seat_class.name,
                         "price": str(ticket.price),
-                        "created_at": ticket.created_at.isoformat(),
+                        "created_at": ticket.created_at.isoformat()
                     }
                     for ticket in booking.tickets
-                ],
+                ]
             }
         }
 
@@ -146,14 +150,15 @@ class BookingService:
             "booking_status": booking.booking_status.name,
             "ticket_count": len(booking.tickets),
             "created_at": booking.created_at.isoformat(),
-            "updated_at": booking.updated_at.isoformat(),
+            "updated_at": booking.updated_at.isoformat()
         }
 
     @staticmethod
     def _build_ticket(booking_id, flight, passenger, requested_seats):
         required_fields = ["passenger_name", "passenger_passport_num", "seat_num"]
         missing_fields = [
-            field for field in required_fields if field not in passenger or passenger[field] in (None, "")
+            field for field in required_fields
+            if field not in passenger or passenger[field] in (None, "")
         ]
         if missing_fields:
             raise ValueError(f"Missing required passenger fields: {', '.join(missing_fields)}")
@@ -166,7 +171,10 @@ class BookingService:
         if not BookingService.get_seat_availability(flight.id, seat_num):
             raise SeatUnavailableError(seat_num)
 
-        seat_class = BookingService._parse_seat_class(passenger.get("seat_class", SeatClass.economy))
+        seat_class = BookingService._parse_seat_class(
+            passenger.get("seat_class", SeatClass.economy)
+        )
+
         price = BookingService.calculate_ticket_price(flight.base_price, seat_class)
         return Ticket(
             booking_id=booking_id,
@@ -175,7 +183,7 @@ class BookingService:
             seat_num=seat_num,
             seat_class=seat_class,
             flight_id=flight.id,
-            price=price,
+            price=price
         )
 
     @staticmethod
@@ -205,3 +213,46 @@ class BookingService:
         if not isinstance(seat_num, str) or not seat_num.strip():
             raise ValueError("seat_num must be a non-empty string")
         return seat_num.strip().upper()
+
+    @staticmethod
+    def update_booking(booking_id, booking_status=None):
+        if booking_status is None:
+            raise ValueError("booking_status is required")
+
+        booking = Booking.query.filter_by(id=booking_id).first()
+        if not booking:
+            return None
+
+        # Don't allow updating cancelled or refunded bookings
+        if booking.booking_status in (BookingStatus.cancelled, BookingStatus.refunded):
+            raise ValueError(f"Cannot update booking with status '{booking.booking_status.name}'")
+
+        normalized_status = BookingService._parse_booking_status(booking_status)
+        booking.booking_status = normalized_status
+
+        from datetime import datetime, timezone
+        booking.updated_at = datetime.now(timezone.utc)
+
+        db.session.commit()
+        return booking
+
+    @staticmethod
+    def cancel_booking(booking_id):
+        booking = Booking.query.filter_by(id=booking_id).first()
+        if not booking:
+            return None
+
+        # Check if already cancelled or refunded
+        if booking.booking_status == BookingStatus.cancelled:
+            raise ValueError("Booking is already cancelled")
+        if booking.booking_status == BookingStatus.refunded:
+            raise ValueError("Cannot cancel a refunded booking")
+
+        booking.booking_status = BookingStatus.cancelled
+
+        from datetime import datetime, timezone
+        booking.updated_at = datetime.now(timezone.utc)
+
+        db.session.commit()
+        return booking
+

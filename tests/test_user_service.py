@@ -8,126 +8,44 @@ from werkzeug.security import check_password_hash
 from ticket_management_system.extensions import db
 from ticket_management_system.models import User, Roles
 from ticket_management_system.resources.user_service import UserService
+from ticket_management_system.exceptions import InvalidRoleError, InvalidCredentialsError, TokenExpiredError, InvalidTokenError, UserNotFoundError
 import jwt
 import os
+import pytest
 
 
 class TestUserServiceValidation:
     """Test validation methods."""
 
-    def test_validate_registration_data_valid(self):
-        """Test validation with valid registration data."""
-        data = {
-            'firstname': 'John',
-            'lastname': 'Doe',
-            'email': 'john@example.com',
-            'password': 'password123'
-        }
-        is_valid, error = UserService.validate_registration_data(data)
-        assert is_valid is True
-        assert error is None
-
-    def test_validate_registration_data_missing_fields(self):
-        """Test validation with missing required fields."""
-        data = {
-            'firstname': 'John',
-            'email': 'john@example.com'
-        }
-        is_valid, error = UserService.validate_registration_data(data)
-        assert is_valid is False
-        assert 'Missing required fields' in error
-        assert 'lastname' in error
-        assert 'password' in error
-
-    def test_validate_registration_data_empty_body(self):
-        """Test validation with empty request body."""
-        is_valid, error = UserService.validate_registration_data(None)
-        assert is_valid is False
-        assert 'Request body must be JSON' in error
-
-    def test_validate_registration_data_firstname_too_long(self):
-        """Test validation with firstname exceeding max length."""
-        data = {
-            'firstname': 'a' * 31,  # 31 chars (max is 30)
-            'lastname': 'Doe',
-            'email': 'john@example.com',
-            'password': 'password123'
-        }
-        is_valid, error = UserService.validate_registration_data(data)
-        assert is_valid is False
-        assert 'firstname must be 30 characters or less' in error
-
-    def test_validate_registration_data_lastname_too_long(self):
-        """Test validation with lastname exceeding max length."""
-        data = {
-            'firstname': 'John',
-            'lastname': 'b' * 31,
-            'email': 'john@example.com',
-            'password': 'password123'
-        }
-        is_valid, error = UserService.validate_registration_data(data)
-        assert is_valid is False
-        assert 'lastname must be 30 characters or less' in error
-
-    def test_validate_registration_data_email_too_long(self):
-        """Test validation with email exceeding max length."""
-        data = {
-            'firstname': 'John',
-            'lastname': 'Doe',
-            'email': 'a' * 31,
-            'password': 'password123'
-        }
-        is_valid, error = UserService.validate_registration_data(data)
-        assert is_valid is False
-        assert 'email must be 30 characters or less' in error
-
-    def test_validate_registration_data_password_too_short(self):
-        """Test validation with password too short."""
-        data = {
-            'firstname': 'John',
-            'lastname': 'Doe',
-            'email': 'john@example.com',
-            'password': '12345'  # 5 chars (min is 6)
-        }
-        is_valid, error = UserService.validate_registration_data(data)
-        assert is_valid is False
-        assert 'password must be at least 6 characters' in error
-
     def test_validate_role_user(self):
         """Test role validation for user role."""
-        role, error = UserService.validate_role('user')
+        role = UserService.validate_role('user')
         assert role == Roles.user
-        assert error is None
 
     def test_validate_role_admin(self):
         """Test role validation for admin role."""
-        role, error = UserService.validate_role('admin')
+        role = UserService.validate_role('admin')
         assert role == Roles.admin
-        assert error is None
 
     def test_validate_role_case_insensitive(self):
         """Test role validation is case insensitive."""
-        role, error = UserService.validate_role('ADMIN')
+        role = UserService.validate_role('ADMIN')
         assert role == Roles.admin
-        assert error is None
 
     def test_validate_role_invalid(self):
-        """Test role validation with invalid role."""
-        role, error = UserService.validate_role('superuser')
-        assert role is None
-        assert 'Invalid role' in error
+        """Test role validation with invalid role raises exception."""
+        with pytest.raises(InvalidRoleError):
+            UserService.validate_role('superuser')
 
     def test_validate_role_empty(self):
         """Test role validation with empty string defaults to user."""
-        role, error = UserService.validate_role('')
+        role = UserService.validate_role('')
         assert role == Roles.user
-        assert error is None
 
     def test_validate_role_none(self):
         """Test role validation with None defaults to user."""
-        role, error = UserService.validate_role(None)
+        role = UserService.validate_role(None)
         assert role == Roles.user
-        assert error is None
 
 
 class TestUserServiceDatabaseOperations:
@@ -208,33 +126,30 @@ class TestUserServiceAuthentication:
     def test_authenticate_user_success(self, app, test_user):
         """Test successful user authentication."""
         with app.app_context():
-            user, error = UserService.authenticate_user(
+            user = UserService.authenticate_user(
                 test_user.email,
                 'password123'
             )
             assert user is not None
-            assert error is None
             assert user.id == test_user.id
 
     def test_authenticate_user_wrong_password(self, app, test_user):
-        """Test authentication with wrong password."""
+        """Test authentication with wrong password raises exception."""
         with app.app_context():
-            user, error = UserService.authenticate_user(
-                test_user.email,
-                'wrongpassword'
-            )
-            assert user is None
-            assert error == 'Invalid email or password'
+            with pytest.raises(InvalidCredentialsError):
+                UserService.authenticate_user(
+                    test_user.email,
+                    'wrongpassword'
+                )
 
     def test_authenticate_user_nonexistent_email(self, app):
-        """Test authentication with non-existent email."""
+        """Test authentication with non-existent email raises exception."""
         with app.app_context():
-            user, error = UserService.authenticate_user(
-                'nonexistent@example.com',
-                'password123'
-            )
-            assert user is None
-            assert error == 'Invalid email or password'
+            with pytest.raises(InvalidCredentialsError):
+                UserService.authenticate_user(
+                    'nonexistent@example.com',
+                    'password123'
+                )
 
     def test_generate_token(self, app, test_user):
         """Test JWT token generation."""
@@ -257,14 +172,13 @@ class TestUserServiceAuthentication:
         """Test verifying a valid token."""
         with app.app_context():
             token = UserService.generate_token(test_user)
-            user, error = UserService.verify_token(token)
+            user = UserService.verify_token(token)
 
             assert user is not None
-            assert error is None
             assert user.id == test_user.id
 
     def test_verify_token_expired(self, app, test_user):
-        """Test verifying an expired token."""
+        """Test verifying an expired token raises exception."""
         with app.app_context():
             # Create an expired token
             secret = os.getenv('JWT_SECRET_KEY', 'dummy-secret-key-for-development')
@@ -277,19 +191,17 @@ class TestUserServiceAuthentication:
             }
             token = jwt.encode(payload, secret, algorithm='HS256')
 
-            user, error = UserService.verify_token(token)
-            assert user is None
-            assert error == 'Token expired'
+            with pytest.raises(TokenExpiredError):
+                UserService.verify_token(token)
 
     def test_verify_token_invalid(self, app):
-        """Test verifying an invalid token."""
+        """Test verifying an invalid token raises exception."""
         with app.app_context():
-            user, error = UserService.verify_token('invalid.token.here')
-            assert user is None
-            assert error == 'Invalid token'
+            with pytest.raises(InvalidTokenError):
+                UserService.verify_token('invalid.token.here')
 
     def test_verify_token_user_not_found(self, app):
-        """Test verifying token for non-existent user."""
+        """Test verifying token for non-existent user raises exception."""
         with app.app_context():
             import uuid
             fake_id = str(uuid.uuid4())
@@ -303,9 +215,8 @@ class TestUserServiceAuthentication:
             }
             token = jwt.encode(payload, secret, algorithm='HS256')
 
-            user, error = UserService.verify_token(token)
-            assert user is None
-            assert error == 'User not found'
+            with pytest.raises(UserNotFoundError):
+                UserService.verify_token(token)
 
 
 class TestUserServiceFormatting:
