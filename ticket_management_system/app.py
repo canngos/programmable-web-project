@@ -1,3 +1,4 @@
+"""Flask application entry point."""
 import os
 from ticket_management_system import create_app
 

@@ -1,3 +1,4 @@
+"""Root and health check API endpoints."""
 from flask import Blueprint, jsonify
 
 root_bp = Blueprint("root", __name__)
@@ -5,6 +6,7 @@ root_bp = Blueprint("root", __name__)
 
 @root_bp.route("/")
 def index():
+    """Root endpoint - API information."""
     return (
         jsonify(
             {
@@ -41,6 +43,7 @@ def index():
 
 @root_bp.route("/health")
 def health_check():
+    """Health check endpoint."""
     return (
         jsonify(
             {
@@ -50,4 +53,3 @@ def health_check():
         ),
         200,
     )
-

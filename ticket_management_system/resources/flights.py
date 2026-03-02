@@ -1,8 +1,9 @@
+"""Flight management API endpoints."""
 from flask import Blueprint, request, jsonify
 from flasgger import swag_from
 from marshmallow import ValidationError
 from ticket_management_system.extensions import cache
-
+from ticket_management_system.utils import handle_validation_error, handle_general_error, handle_conflict_error
 from ticket_management_system.resources.users import token_required, admin_required
 from ticket_management_system.static.schema.flight_schemas import FlightSearchSchema, AddFlightSchema
 from ticket_management_system.resources.flight_service import FlightService
@@ -15,22 +16,20 @@ flight_bp = Blueprint('flights', __name__, url_prefix='/api/flights')
 @token_required
 @cache.cached(timeout=50)
 @swag_from("../swagger_specs/airports_list.yml")
-def get_airports(current_user):
+def get_airports(_current_user):
+    """Get list of available airports."""
     try:
         result = FlightService.get_available_airports()
         return jsonify(result), 200
-
-    except Exception as e:
-        return jsonify({
-            'error': 'Internal Server Error',
-            'message': str(e)
-        }), 500
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return handle_general_error(e, rollback=False)
 
 
 @flight_bp.route('/search', methods=['GET'])
 @token_required
 @swag_from('../swagger_specs/flight_search.yml')
 def search_flights(_current_user):
+    """Search flights with filters."""
     try:
         # Validate query parameters using Marshmallow schema
         schema = FlightSearchSchema()
@@ -59,20 +58,10 @@ def search_flights(_current_user):
         )
 
         return jsonify(result), 200
-
     except ValidationError as err:
-        # Return validation errors with 400 status
-        return jsonify({
-            'error': 'Bad Request',
-            'message': 'Validation failed',
-            'errors': err.messages
-        }), 400
-
-    except Exception as e:
-        return jsonify({
-            'error': 'Internal Server Error',
-            'message': str(e)
-        }), 500
+        return handle_validation_error(err)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return handle_general_error(e, rollback=False)
 
 
 @flight_bp.route('/', methods=['POST'])
@@ -80,6 +69,7 @@ def search_flights(_current_user):
 @admin_required
 @swag_from('../swagger_specs/flight_add.yml')
 def add_flight(_current_user):
+    """Add a new flight (admin only)."""
     try:
         # Get and validate request body using Marshmallow schema
         schema = AddFlightSchema()
@@ -100,29 +90,12 @@ def add_flight(_current_user):
         response['message'] = 'Flight created successfully'
 
         return jsonify(response), 201
-
     except ValidationError as err:
-        # Return validation errors with 400 status
-        return jsonify({
-            'error': 'Bad Request',
-            'message': 'Validation failed',
-            'errors': err.messages
-        }), 400
-
+        return handle_validation_error(err)
     except FlightAlreadyExistsError as err:
-        # Handle duplicate flight code
-        return jsonify({
-            'error': 'Conflict',
-            'message': err.message
-        }), 409
-
-    except Exception as e:
-        from ticket_management_system.extensions import db
-        db.session.rollback()
-        return jsonify({
-            'error': 'Internal Server Error',
-            'message': str(e)
-        }), 500
+        return handle_conflict_error(err.message)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return handle_general_error(e)
 
 
 @flight_bp.route('/<uuid:flight_id>', methods=['DELETE'])
@@ -130,24 +103,17 @@ def add_flight(_current_user):
 @admin_required
 @swag_from('../swagger_specs/flight_delete.yml')
 def delete_flight(_current_user, flight_id):
+    """Delete a flight by ID."""
     try:
         # Delete flight using service
         FlightService.delete_flight(flight_id)
-
         return jsonify({
             'message': f'Flight {flight_id} deleted successfully'
         }), 200
-
     except FlightNotFoundError as err:
         return jsonify({
             'error': 'Not Found',
             'message': err.message
         }), 404
-
     except Exception as e:  # pylint: disable=broad-exception-caught
-        from ticket_management_system.extensions import db
-        db.session.rollback()
-        return jsonify({
-            'error': 'Internal Server Error',
-            'message': str(e)
-        }), 500
+        return handle_general_error(e)

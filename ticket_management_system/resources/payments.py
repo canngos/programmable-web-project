@@ -14,12 +14,12 @@ payment_bp = Blueprint('payments', __name__, url_prefix='/api/payments')
 @payment_bp.route('/', methods=['POST'])
 @token_required
 @swag_from("../swagger_specs/payment_process.yml")
-def process_payment(current_user):
+def process_payment(current_user):  # pylint: disable=too-many-return-statements
     """
     Process payment for a booking and confirm it.
-    
+
     This function requires user input for: booking_number, credit_card_number and security_code
-    
+
     Properties:
         booking_number:
             type: string
@@ -55,7 +55,7 @@ def process_payment(current_user):
                 "error": "Bad Request",
                 "message": "All fields are required"
             }), 400
-        
+
         if not (credit_card_number.isdigit() and len(credit_card_number) == 16):
             return jsonify({
                 "error": "Bad Request",
@@ -90,7 +90,7 @@ def process_payment(current_user):
                 "error": "Conflict",
                 "message": "Booking is already paid"
             }), 409
-        
+
         booking.booking_status = BookingStatus.paid
 
         db.session.commit()

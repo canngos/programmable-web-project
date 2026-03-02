@@ -1,7 +1,9 @@
+"""Validation schemas for user endpoints."""
 from marshmallow import Schema, fields, validates, ValidationError, validate
 
 
 class UserProfileUpdateSchema(Schema):
+    """Schema for user profile update validation."""
     firstname = fields.Str(
         required=False,
         allow_none=False,
@@ -28,17 +30,20 @@ class UserProfileUpdateSchema(Schema):
     )
 
     @validates('firstname')
-    def validate_firstname_not_empty(self, value, **kwargs):
+    def validate_firstname_not_empty(self, value, **_kwargs):
+        """Validate firstname is not empty."""
         if value and not value.strip():
             raise ValidationError('firstname cannot be empty or only whitespace')
 
     @validates('lastname')
-    def validate_lastname_not_empty(self, value, **kwargs):
+    def validate_lastname_not_empty(self, value, **_kwargs):
+        """Validate lastname is not empty."""
         if value and not value.strip():
             raise ValidationError('lastname cannot be empty or only whitespace')
 
 
 class UserRegistrationSchema(Schema):
+    """Schema for user registration validation."""
     firstname = fields.Str(
         required=True,
         validate=validate.Length(min=1, max=30, error='firstname must be between 1 and 30 characters')

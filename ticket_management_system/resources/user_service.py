@@ -1,9 +1,11 @@
+"""Business logic for user operations."""
 import os
 from datetime import datetime, timedelta, timezone
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 from ticket_management_system.extensions import db
 from ticket_management_system.models import User, Roles
+from ticket_management_system.utils import format_pagination_response
 from ticket_management_system.exceptions import (
     InvalidCredentialsError,
     UserNotFoundError,
@@ -20,8 +22,10 @@ JWT_EXPIRATION_HOURS = 24
 
 
 class UserService:
+    """Service class for user operations."""
     @staticmethod
     def validate_role(role_str):
+        """Validate and convert role string to Roles enum."""
         if not role_str:
             return Roles.user
 
@@ -34,10 +38,12 @@ class UserService:
 
     @staticmethod
     def email_exists(email):
+        """Check if email already exists in database."""
         return User.query.filter_by(email=email).first() is not None
 
     @staticmethod
     def create_user(firstname, lastname, email, password, role=Roles.user):
+        """Create a new user with hashed password."""
         password_hash = generate_password_hash(password)
 
         new_user = User(
@@ -55,6 +61,7 @@ class UserService:
 
     @staticmethod
     def generate_token(user):
+        """Generate JWT token for user authentication."""
         token_payload = {
             'user_id': str(user.id),
             'email': user.email,
@@ -68,6 +75,7 @@ class UserService:
 
     @staticmethod
     def format_user_response(user, include_token=False):
+        """Format user data for API response, optionally including JWT token."""
         response = {
             'user': {
                 'id': str(user.id),
@@ -89,6 +97,7 @@ class UserService:
 
     @staticmethod
     def authenticate_user(email, password):
+        """Authenticate user with credentials."""
         user = User.query.filter_by(email=email).first()
 
         if not user:
@@ -101,6 +110,7 @@ class UserService:
 
     @staticmethod
     def verify_token(token):
+        """Verify and decode JWT token, return user or raise exception."""
         try:
             import uuid as uuid_lib
             payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
@@ -124,10 +134,12 @@ class UserService:
 
     @staticmethod
     def get_user_by_id(user_id):
+        """Get user by ID."""
         return User.query.filter_by(id=user_id).first()
 
     @staticmethod
     def get_paginated_users(page=1, per_page=10):
+        """Get paginated list of all users."""
         # Validate pagination parameters
         page = max(page, 1)
         per_page = per_page if per_page > 0 else 10  # Default to 10 if invalid
@@ -140,31 +152,13 @@ class UserService:
             error_out=False
         )
 
-        users_data = [{
-            'id': str(user.id),
-            'firstname': user.firstname,
-            'lastname': user.lastname,
-            'email': user.email,
-            'role': user.role.name,
-            'created_at': user.created_at.isoformat()
-        } for user in pagination.items]
+        users_data = [UserService.format_user_detail(user) for user in pagination.items]
 
-        return {
-            'users': users_data,
-            'pagination': {
-                'page': pagination.page,
-                'per_page': pagination.per_page,
-                'total_pages': pagination.pages,
-                'total_items': pagination.total,
-                'has_next': pagination.has_next,
-                'has_prev': pagination.has_prev,
-                'next_page': pagination.next_num if pagination.has_next else None,
-                'prev_page': pagination.prev_num if pagination.has_prev else None
-            }
-        }
+        return format_pagination_response('users', users_data, pagination)
 
     @staticmethod
     def format_user_detail(user):
+        """Format user details for response."""
         return {
             'user': {
                 'id': str(user.id),
@@ -179,6 +173,7 @@ class UserService:
 
     @staticmethod
     def update_user_profile(user, firstname=None, lastname=None, email=None, password=None):
+        """Update user profile."""
         # Validate email uniqueness if provided
         if email and email != user.email:
             if UserService.email_exists(email):

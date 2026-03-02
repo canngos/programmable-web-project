@@ -1,3 +1,4 @@
+"""Booking management API endpoints."""
 from flask import Blueprint, jsonify, request
 from flasgger import swag_from
 from marshmallow import ValidationError
@@ -20,6 +21,7 @@ booking_bp = Blueprint("bookings", __name__, url_prefix="/api/bookings")
 @token_required
 @swag_from("../swagger_specs/booking_create.yml")
 def create_booking(current_user):
+    """Create a new booking for a flight."""
     try:
         schema = BookTicketsSchema()
         data = schema.load(request.get_json())
@@ -69,6 +71,7 @@ def create_booking(current_user):
 @token_required
 @swag_from("../swagger_specs/booking_list.yml")
 def list_bookings(current_user):
+    """List bookings for current user or all bookings for admin."""
     try:
         query_schema = PaginationQuerySchema()
         query_data = query_schema.load(request.args)
@@ -100,6 +103,7 @@ def list_bookings(current_user):
 @token_required
 @swag_from("../swagger_specs/booking_update.yml")
 def update_booking(current_user, booking_id):
+    """Update booking status."""
     try:
         # Get the booking first
         booking = BookingService.get_booking_by_id(booking_id)
@@ -154,6 +158,7 @@ def update_booking(current_user, booking_id):
 @token_required
 @swag_from("../swagger_specs/booking_cancel.yml")
 def cancel_booking(current_user, booking_id):
+    """Cancel a booking."""
     try:
         # Get the booking first
         booking = BookingService.get_booking_by_id(booking_id)
@@ -195,6 +200,7 @@ def cancel_booking(current_user, booking_id):
 @token_required
 @swag_from("../swagger_specs/booking_get.yml")
 def get_booking(current_user, booking_id):
+    """Get booking details by ID."""
     booking = BookingService.get_booking_by_id(booking_id)
     if not booking:
         return jsonify({
@@ -214,7 +220,8 @@ def get_booking(current_user, booking_id):
 @booking_bp.route("/availability", methods=["GET"])
 @token_required
 @swag_from("../swagger_specs/booking_availability.yml")
-def get_seat_availability(current_user):
+def get_seat_availability(_current_user):
+    """Check seat availability."""
     try:
         schema = SeatAvailabilityQuerySchema()
         data = schema.load(request.args)

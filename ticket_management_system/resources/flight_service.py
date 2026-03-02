@@ -1,12 +1,16 @@
+"""Business logic for flight operations."""
 from datetime import datetime, timedelta
 from ticket_management_system.extensions import db
 from ticket_management_system.models import Flight, FlightStatus
 from ticket_management_system.exceptions import FlightAlreadyExistsError
+from ticket_management_system.utils import format_pagination_response
 
 
 class FlightService:
+    """Service class for flight operations."""
     @staticmethod
     def get_available_airports():
+        """Get list of available airports."""
         # Get all distinct origin airports
         origins = db.session.query(Flight.origin_airport).distinct().all()
 
@@ -29,10 +33,11 @@ class FlightService:
         }
 
     @staticmethod
-    def search_flights(  # pylint: disable=too-many-positional-arguments
+    def search_flights(  # pylint: disable=too-many-positional-arguments,too-many-arguments
             origin_airport=None, destination_airport=None,
             departure_date=None, arrival_date=None,
             page=1, per_page=10):
+        """Search flights with filters."""
         # Start with base query - only active flights
         query = Flight.query.filter(Flight.status == FlightStatus.active)
 
@@ -73,12 +78,9 @@ class FlightService:
         query = query.order_by(Flight.departure_time.asc())
 
         # Validate pagination parameters
-        if page < 1:
-            page = 1
-        if per_page < 1:
-            per_page = 10
-        if per_page > 100:
-            per_page = 100
+        page = max(page, 1)
+        per_page = max(per_page, 1)
+        per_page = min(per_page, 100)
 
         # Execute paginated query
         pagination = query.paginate(
@@ -88,38 +90,18 @@ class FlightService:
         )
 
         # Format results
-        flights_data = [{
-            'id': str(flight.id),
-            'flight_code': flight.flight_code,
-            'origin_airport': flight.origin_airport,
-            'destination_airport': flight.destination_airport,
-            'departure_time': flight.departure_time.isoformat(),
-            'arrival_time': flight.arrival_time.isoformat(),
-            'base_price': str(flight.base_price),
-            'status': flight.status.name,
-            'created_at': flight.created_at.isoformat()
-        } for flight in pagination.items]
+        flights_data = [FlightService.format_flight_detail(flight) for flight in pagination.items]
 
-        return {
-            'flights': flights_data,
-            'pagination': {
-                'page': pagination.page,
-                'per_page': pagination.per_page,
-                'total_pages': pagination.pages,
-                'total_items': pagination.total,
-                'has_next': pagination.has_next,
-                'has_prev': pagination.has_prev,
-                'next_page': pagination.next_num if pagination.has_next else None,
-                'prev_page': pagination.prev_num if pagination.has_prev else None
-            }
-        }
+        return format_pagination_response('flights', flights_data, pagination)
 
     @staticmethod
     def get_flight_by_id(flight_id):
+        """Get flight by ID."""
         return Flight.query.filter_by(id=flight_id).first()
 
     @staticmethod
     def format_flight_detail(flight):
+        """Format flight details for response."""
         return {
             'flight': {
                 'id': str(flight.id),
@@ -136,9 +118,10 @@ class FlightService:
         }
 
     @staticmethod
-    def create_flight(  # pylint: disable=too-many-positional-arguments
+    def create_flight(  # pylint: disable=too-many-positional-arguments,too-many-arguments
             flight_code, origin_airport, destination_airport,
             departure_time, arrival_time, base_price):
+        """Create a new flight."""
         # Check if flight code already exists
         existing_flight = Flight.query.filter_by(flight_code=flight_code.upper()).first()
         if existing_flight:
@@ -162,6 +145,7 @@ class FlightService:
 
     @staticmethod
     def delete_flight(flight_id):
+        """Delete a flight by ID."""
         from ticket_management_system.exceptions import FlightNotFoundError
 
         flight = Flight.query.filter_by(id=flight_id).first()
