@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flasgger import swag_from
 from marshmallow import ValidationError
+from ticket_management_system.extensions import cache
 
 from ticket_management_system.resources.users import token_required, admin_required
 from ticket_management_system.static.schema.flight_schemas import FlightSearchSchema, AddFlightSchema
@@ -12,8 +13,9 @@ flight_bp = Blueprint('flights', __name__, url_prefix='/api/flights')
 
 @flight_bp.route('/airports', methods=['GET'])
 @token_required
-@swag_from('../swagger_specs/airports_list.yml')
-def get_airports(_current_user):
+@cache.cached(timeout=50)
+@swag_from("../swagger_specs/airports_list.yml")
+def get_airports(current_user):
     try:
         result = FlightService.get_available_airports()
         return jsonify(result), 200

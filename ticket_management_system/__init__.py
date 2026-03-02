@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from flask import Flask
 from flasgger import Swagger
 
-from ticket_management_system.extensions import db, migrate
+from ticket_management_system.extensions import cache, db, migrate
 
 load_dotenv()
 
@@ -40,6 +40,8 @@ def create_app():
 
     db.init_app(app)
     migrate.init_app(app, db)
+    app.config["CACHE_TYPE"] = "SimpleCache"
+    cache.init_app(app)
 
     # Import models during app initialization so SQLAlchemy sees all tables.
     with app.app_context():
