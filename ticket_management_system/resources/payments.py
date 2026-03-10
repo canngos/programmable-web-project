@@ -21,9 +21,9 @@ def process_payment(current_user):  # pylint: disable=too-many-return-statements
     This function requires user input for: booking_number, credit_card_number and security_code
 
     Properties:
-        booking_number:
+        id:
             type: string
-            example: "BK123456"
+            example: "e8f63a4b-0410-4797-bb76-fe389098d18f"
         credit_card_number:
             type: string
             example: "1234567812345678"
@@ -46,11 +46,11 @@ def process_payment(current_user):  # pylint: disable=too-many-return-statements
                 "message": "Request body must be JSON"
             }), 400
 
-        booking_number = data.get("booking_number")
+        id = data.get("booking_number")
         credit_card_number = data.get("credit_card_number")
         security_code = data.get("security_code")
 
-        if not booking_number or not credit_card_number or not security_code:
+        if not id or not credit_card_number or not security_code:
             return jsonify({
                 "error": "Bad Request",
                 "message": "All fields are required"
@@ -69,7 +69,7 @@ def process_payment(current_user):  # pylint: disable=too-many-return-statements
             }), 400
 
         # Find booking
-        booking = Booking.query.filter_by(booking_number=booking_number).first()
+        booking = Booking.query.filter_by(id=id).first()
 
         if not booking:
             return jsonify({
@@ -97,7 +97,7 @@ def process_payment(current_user):  # pylint: disable=too-many-return-statements
 
         return jsonify({
             "message": "Payment successful. Booking confirmed.",
-            "booking_number": booking.booking_number,
+            "booking_number": booking.id,
             "status": booking.booking_status.name
         }), 200
 
