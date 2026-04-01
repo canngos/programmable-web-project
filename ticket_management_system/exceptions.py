@@ -110,3 +110,12 @@ class SeatUnavailableError(Exception):
         self.seat_num = seat_num
         self.message = f'Seat with seat number {seat_num} is unavailable for purchase'
         super().__init__(self.message)
+
+
+class BookingNotFoundError(Exception):
+    """Raised when booking is not found."""
+    def __init__(self, booking_id):
+        self.booking_id = booking_id
+        self.message = f'Booking with ID {booking_id} not found'
+        super().__init__(self.message)
+

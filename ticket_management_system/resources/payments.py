@@ -5,6 +5,7 @@ Provides endpoint for booking payment and confirmation.
 
 from flask import Blueprint, request, jsonify
 from flasgger import swag_from
+import uuid
 from ticket_management_system.extensions import db
 from ticket_management_system.models import Booking, BookingStatus
 from ticket_management_system.resources.users import token_required
@@ -68,8 +69,17 @@ def process_payment(current_user):  # pylint: disable=too-many-return-statements
                 "message": "Security code must be 3 digits"
             }), 400
 
+        # Convert booking_number string to UUID
+        try:
+            booking_uuid = uuid.UUID(id)
+        except (ValueError, AttributeError):
+            return jsonify({
+                "error": "Bad Request",
+                "message": "Invalid booking ID format"
+            }), 400
+
         # Find booking
-        booking = Booking.query.filter_by(id=id).first()
+        booking = Booking.query.filter_by(id=booking_uuid).first()
 
         if not booking:
             return jsonify({

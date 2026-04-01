@@ -12,7 +12,11 @@ from ticket_management_system.static.schema.booking_schemas import (
     UpdateBookingSchema
 )
 from ticket_management_system.resources.booking_service import BookingService
-from ticket_management_system.exceptions import FlightNotFoundError, SeatUnavailableError
+from ticket_management_system.exceptions import (
+    FlightNotFoundError,
+    SeatUnavailableError,
+    BookingNotFoundError
+)
 
 booking_bp = Blueprint("bookings", __name__, url_prefix="/api/bookings")
 
@@ -108,10 +112,7 @@ def update_booking(current_user, booking_id):
         # Get the booking first
         booking = BookingService.get_booking_by_id(booking_id)
         if not booking:
-            return jsonify({
-                "error": "Not Found",
-                "message": f"Booking with ID {booking_id} not found"
-            }), 404
+            raise BookingNotFoundError(booking_id)
 
         # Check permissions - only owner or admin can update
         if current_user.role != Roles.admin and booking.user_id != current_user.id:
@@ -140,6 +141,11 @@ def update_booking(current_user, booking_id):
             "message": "Validation failed",
             "errors": err.messages
         }), 400
+    except BookingNotFoundError as err:
+        return jsonify({
+            "error": "Not Found",
+            "message": err.message
+        }), 404
     except ValueError as err:
         return jsonify({
             "error": "Bad Request",
@@ -163,10 +169,7 @@ def cancel_booking(current_user, booking_id):
         # Get the booking first
         booking = BookingService.get_booking_by_id(booking_id)
         if not booking:
-            return jsonify({
-                "error": "Not Found",
-                "message": f"Booking with ID {booking_id} not found"
-            }), 404
+            raise BookingNotFoundError(booking_id)
 
         # Check permissions - only owner or admin can cancel
         if current_user.role != Roles.admin and booking.user_id != current_user.id:
@@ -182,6 +185,11 @@ def cancel_booking(current_user, booking_id):
         response["message"] = "Booking cancelled successfully"
         return jsonify(response), 200
 
+    except BookingNotFoundError as err:
+        return jsonify({
+            "error": "Not Found",
+            "message": err.message
+        }), 404
     except ValueError as err:
         return jsonify({
             "error": "Bad Request",
@@ -201,20 +209,29 @@ def cancel_booking(current_user, booking_id):
 @swag_from("../swagger_specs/booking_get.yml")
 def get_booking(current_user, booking_id):
     """Get booking details by ID."""
-    booking = BookingService.get_booking_by_id(booking_id)
-    if not booking:
+    try:
+        booking = BookingService.get_booking_by_id(booking_id)
+        if not booking:
+            raise BookingNotFoundError(booking_id)
+
+        if current_user.role != Roles.admin and booking.user_id != current_user.id:
+            return jsonify({
+                "error": "Forbidden",
+                "message": "You are not allowed to access this booking"
+            }), 403
+
+        return jsonify(BookingService.format_booking_detail(booking)), 200
+
+    except BookingNotFoundError as err:
         return jsonify({
             "error": "Not Found",
-            "message": f"Booking with ID {booking_id} not found"
+            "message": err.message
         }), 404
-
-    if current_user.role != Roles.admin and booking.user_id != current_user.id:
+    except Exception as err:  # pylint: disable=broad-exception-caught
         return jsonify({
-            "error": "Forbidden",
-            "message": "You are not allowed to access this booking"
-        }), 403
-
-    return jsonify(BookingService.format_booking_detail(booking)), 200
+            "error": "Internal Server Error",
+            "message": str(err)
+        }), 500
 
 
 @booking_bp.route("/availability", methods=["GET"])

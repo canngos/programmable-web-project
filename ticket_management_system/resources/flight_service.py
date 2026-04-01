@@ -103,18 +103,16 @@ class FlightService:
     def format_flight_detail(flight):
         """Format flight details for response."""
         return {
-            'flight': {
-                'id': str(flight.id),
-                'flight_code': flight.flight_code,
-                'origin_airport': flight.origin_airport,
-                'destination_airport': flight.destination_airport,
-                'departure_time': flight.departure_time.isoformat(),
-                'arrival_time': flight.arrival_time.isoformat(),
-                'base_price': str(flight.base_price),
-                'status': flight.status.name,
-                'created_at': flight.created_at.isoformat(),
-                'updated_at': flight.updated_at.isoformat()
-            }
+            'id': str(flight.id),
+            'flight_code': flight.flight_code,
+            'origin_airport': flight.origin_airport,
+            'destination_airport': flight.destination_airport,
+            'departure_time': flight.departure_time.isoformat(),
+            'arrival_time': flight.arrival_time.isoformat(),
+            'base_price': str(flight.base_price),
+            'status': flight.status.name,
+            'created_at': flight.created_at.isoformat(),
+            'updated_at': flight.updated_at.isoformat()
         }
 
     @staticmethod

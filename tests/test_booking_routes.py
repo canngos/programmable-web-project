@@ -1082,3 +1082,374 @@ class TestCancelBookingEndpoint:
             db.session.delete(flight)
             db.session.commit()
 
+
+class TestBookingErrorHandling:
+    """Test error handling and exception paths in booking endpoints."""
+
+    def test_create_booking_with_invalid_json_format(self, client, auth_headers):
+        """Test create booking with invalid JSON format."""
+        response = client.post(
+            "/api/bookings/",
+            headers=auth_headers,
+            data="invalid json",
+            content_type="application/json"
+        )
+        # Invalid JSON returns 500 from Flask request parsing
+        assert response.status_code in [400, 500]
+
+    def test_create_booking_empty_passengers_list(self, client, auth_headers):
+        """Test create booking with empty passengers list."""
+        response = client.post(
+            "/api/bookings/",
+            headers=auth_headers,
+            json={
+                "flight_id": "fe4a1338-4b98-4b51-9f5c-1234567890ab",
+                "passengers": []
+            }
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Bad Request"
+
+    def test_update_booking_nonexistent(self, client, auth_headers):
+        """Test update nonexistent booking returns 404."""
+        fake_id = "fe4a1338-4b98-4b51-9f5c-1234567890ab"
+        response = client.put(
+            f"/api/bookings/{fake_id}",
+            headers=auth_headers,
+            json={"booking_status": "cancelled"}
+        )
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "not found" in data["message"].lower()
+
+    def test_update_booking_invalid_status(self, client, app, auth_headers, test_user):
+        """Test update booking with invalid status value."""
+        with app.app_context():
+            flight = _create_test_flight()
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "Test",
+                        "passenger_passport_num": "P99999999",
+                        "seat_num": "99A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+            booking_id = booking.id
+
+        response = client.put(
+            f"/api/bookings/{booking_id}",
+            headers=auth_headers,
+            json={"booking_status": "invalid_status"}
+        )
+        assert response.status_code == 400
+
+    def test_update_booking_forbidden_other_user(self, client, app):
+        """Test user cannot update another user's booking."""
+        user1_id = None
+        user2_id = None
+        booking_id = None
+
+        with app.app_context():
+            user1 = User(
+                firstname='User1',
+                lastname='One',
+                email=f'user1_{datetime.now().timestamp()}@test.com',
+                password_hash=generate_password_hash('password123'),
+                role=Roles.user
+            )
+            user2 = User(
+                firstname='User2',
+                lastname='Two',
+                email=f'user2_{datetime.now().timestamp()}@test.com',
+                password_hash=generate_password_hash('password123'),
+                role=Roles.user
+            )
+            db.session.add(user1)
+            db.session.add(user2)
+            db.session.commit()
+            user1_id = user1.id
+            user2_id = user2.id
+
+            flight = _create_test_flight()
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=user1.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "User1",
+                        "passenger_passport_num": "P11111111",
+                        "seat_num": "11A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+            booking_id = booking.id
+
+        with app.app_context():
+            user2 = User.query.get(user2_id)
+            token = UserService.generate_token(user2)
+            headers = {'Authorization': f'Bearer {token}'}
+
+        response = client.put(
+            f"/api/bookings/{booking_id}",
+            headers=headers,
+            json={"booking_status": "cancelled"}
+        )
+        assert response.status_code == 403
+        assert "not allowed" in response.get_json()['message'].lower()
+
+    def test_cancel_booking_nonexistent(self, client, auth_headers):
+        """Test cancel nonexistent booking returns 404."""
+        fake_id = "fe4a1338-4b98-4b51-9f5c-1234567890ab"
+        response = client.delete(
+            f"/api/bookings/{fake_id}",
+            headers=auth_headers
+        )
+        assert response.status_code == 404
+
+    def test_cancel_booking_forbidden_other_user(self, client, app):
+        """Test user cannot cancel another user's booking."""
+        user1_id = None
+        user2_id = None
+        booking_id = None
+
+        with app.app_context():
+            user1 = User(
+                firstname='User1',
+                lastname='One',
+                email=f'user1_{datetime.now().timestamp()}@test.com',
+                password_hash=generate_password_hash('password123'),
+                role=Roles.user
+            )
+            user2 = User(
+                firstname='User2',
+                lastname='Two',
+                email=f'user2_{datetime.now().timestamp()}@test.com',
+                password_hash=generate_password_hash('password123'),
+                role=Roles.user
+            )
+            db.session.add(user1)
+            db.session.add(user2)
+            db.session.commit()
+            user2_id = user2.id
+
+            flight = _create_test_flight()
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=user1.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "User1",
+                        "passenger_passport_num": "P22222222",
+                        "seat_num": "22A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+            booking_id = booking.id
+
+        with app.app_context():
+            user2 = User.query.get(user2_id)
+            token = UserService.generate_token(user2)
+            headers = {'Authorization': f'Bearer {token}'}
+
+        response = client.delete(
+            f"/api/bookings/{booking_id}",
+            headers=headers
+        )
+        assert response.status_code == 403
+
+    def test_get_booking_nonexistent(self, client, auth_headers):
+        """Test get nonexistent booking returns 404."""
+        fake_id = "fe4a1338-4b98-4b51-9f5c-1234567890ab"
+        response = client.get(
+            f"/api/bookings/{fake_id}",
+            headers=auth_headers
+        )
+        assert response.status_code == 404
+
+    def test_get_booking_forbidden_other_user(self, client, app):
+        """Test user cannot get another user's booking."""
+        user1_id = None
+        user2_id = None
+        booking_id = None
+
+        with app.app_context():
+            user1 = User(
+                firstname='User1',
+                lastname='One',
+                email=f'user1_{datetime.now().timestamp()}@test.com',
+                password_hash=generate_password_hash('password123'),
+                role=Roles.user
+            )
+            user2 = User(
+                firstname='User2',
+                lastname='Two',
+                email=f'user2_{datetime.now().timestamp()}@test.com',
+                password_hash=generate_password_hash('password123'),
+                role=Roles.user
+            )
+            db.session.add(user1)
+            db.session.add(user2)
+            db.session.commit()
+            user2_id = user2.id
+
+            flight = _create_test_flight()
+            db.session.add(flight)
+            db.session.commit()
+
+            booking, _ = BookingService.book_tickets(
+                user_id=user1.id,
+                flight_id=flight.id,
+                passengers=[
+                    {
+                        "passenger_name": "User1",
+                        "passenger_passport_num": "P33333333",
+                        "seat_num": "33A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+            booking_id = booking.id
+
+        with app.app_context():
+            user2 = User.query.get(user2_id)
+            token = UserService.generate_token(user2)
+            headers = {'Authorization': f'Bearer {token}'}
+
+        response = client.get(
+            f"/api/bookings/{booking_id}",
+            headers=headers
+        )
+        assert response.status_code == 403
+
+    def test_seat_availability_invalid_flight_id(self, client, auth_headers):
+        """Test seat availability with invalid flight ID."""
+        response = client.get(
+            "/api/bookings/availability?flight_id=invalid&seat_num=1A",
+            headers=auth_headers
+        )
+        assert response.status_code == 400
+
+    def test_seat_availability_missing_seat_num(self, client, auth_headers):
+        """Test seat availability with missing seat number."""
+        response = client.get(
+            f"/api/bookings/availability?flight_id=fe4a1338-4b98-4b51-9f5c-1234567890ab",
+            headers=auth_headers
+        )
+        assert response.status_code == 400
+
+    def test_seat_availability_missing_flight_id(self, client, auth_headers):
+        """Test seat availability with missing flight ID."""
+        response = client.get(
+            "/api/bookings/availability?seat_num=1A",
+            headers=auth_headers
+        )
+        assert response.status_code == 400
+
+    def test_list_bookings_with_pagination(self, client, app, auth_headers, test_user):
+        """Test list bookings with pagination."""
+        with app.app_context():
+            flight = _create_test_flight()
+            db.session.add(flight)
+            db.session.commit()
+
+            for i in range(5):
+                BookingService.book_tickets(
+                    user_id=test_user.id,
+                    flight_id=flight.id,
+                    passengers=[
+                        {
+                            "passenger_name": f"User{i}",
+                            "passenger_passport_num": f"P{i:08d}",
+                            "seat_num": f"{i+1}A",
+                            "seat_class": "economy"
+                        }
+                    ]
+                )
+
+        response = client.get(
+            "/api/bookings/?page=1&per_page=2",
+            headers=auth_headers
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["pagination"]["page"] == 1
+        assert data["pagination"]["per_page"] == 2
+
+    def test_list_bookings_invalid_page(self, client, auth_headers):
+        """Test list bookings with invalid page number."""
+        response = client.get(
+            "/api/bookings/?page=invalid&per_page=10",
+            headers=auth_headers
+        )
+        assert response.status_code == 400
+
+    def test_seat_availability_ValueError_exception(self, client, app, auth_headers):
+        """Test seat availability endpoint handles ValueError from service."""
+        with app.app_context():
+            flight = _create_test_flight()
+            db.session.add(flight)
+            db.session.commit()
+            flight_id = flight.id
+
+            # Monkey patch the service method to raise ValueError
+            original_method = BookingService.get_seat_availability
+            def raise_value_error(*args, **kwargs):
+                raise ValueError("Invalid seat format")
+            BookingService.get_seat_availability = raise_value_error
+
+        response = client.get(
+            f"/api/bookings/availability?flight_id={flight_id}&seat_num=1A",
+            headers=auth_headers
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Bad Request"
+        assert "invalid seat" in data["message"].lower()
+
+        # Restore original method
+        with app.app_context():
+            BookingService.get_seat_availability = original_method
+
+    def test_seat_availability_unexpected_exception(self, client, app, auth_headers):
+        """Test seat availability endpoint handles unexpected exceptions."""
+        with app.app_context():
+            flight = _create_test_flight()
+            db.session.add(flight)
+            db.session.commit()
+            flight_id = flight.id
+
+            # Monkey patch the service method to raise an exception
+            original_method = BookingService.get_seat_availability
+            def raise_exception(*args, **kwargs):
+                raise Exception("Unexpected error in service")
+            BookingService.get_seat_availability = raise_exception
+
+        response = client.get(
+            f"/api/bookings/availability?flight_id={flight_id}&seat_num=1A",
+            headers=auth_headers
+        )
+        assert response.status_code == 500
+        data = response.get_json()
+        assert data["error"] == "Internal Server Error"
+        assert "unexpected" in data["message"].lower()
+
+        # Restore original method
+        with app.app_context():
+            BookingService.get_seat_availability = original_method
+

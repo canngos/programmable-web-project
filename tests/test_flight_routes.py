@@ -142,7 +142,7 @@ class TestFlightSearchEndpoint:
         """Test search by origin airport."""
         with app.app_context():
             flight = Flight(
-                flight_code='AA101',
+                flight_code='AA_ORIGIN_001',
                 origin_airport='JFK',
                 destination_airport='LAX',
                 departure_time=datetime(2026, 3, 15, 10, 0),
@@ -170,7 +170,7 @@ class TestFlightSearchEndpoint:
         """Test search by destination airport."""
         with app.app_context():
             flight = Flight(
-                flight_code='AA101',
+                flight_code='AA_DEST_001',
                 origin_airport='JFK',
                 destination_airport='LAX',
                 departure_time=datetime(2026, 3, 15, 10, 0),
@@ -198,7 +198,7 @@ class TestFlightSearchEndpoint:
         """Test search by both origin and destination."""
         with app.app_context():
             flight = Flight(
-                flight_code='AA101',
+                flight_code='AA_BOTH_001',
                 origin_airport='JFK',
                 destination_airport='LAX',
                 departure_time=datetime(2026, 3, 15, 10, 0),
@@ -230,7 +230,7 @@ class TestFlightSearchEndpoint:
         """Test search by departure date."""
         with app.app_context():
             flight = Flight(
-                flight_code='AA101',
+                flight_code='AA_DEPT_001',
                 origin_airport='JFK',
                 destination_airport='LAX',
                 departure_time=datetime(2026, 3, 15, 10, 0),
@@ -259,7 +259,7 @@ class TestFlightSearchEndpoint:
         """Test search by arrival date."""
         with app.app_context():
             flight = Flight(
-                flight_code='AA101',
+                flight_code='AA_ARR_001',
                 origin_airport='JFK',
                 destination_airport='LAX',
                 departure_time=datetime(2026, 3, 15, 10, 0),
@@ -283,7 +283,7 @@ class TestFlightSearchEndpoint:
         """Test search with multiple filters."""
         with app.app_context():
             flight = Flight(
-                flight_code='AA101',
+                flight_code='AA_CMPLX_001',
                 origin_airport='JFK',
                 destination_airport='LAX',
                 departure_time=datetime(2026, 3, 15, 10, 0),
@@ -505,7 +505,7 @@ class TestFlightSearchResponseFormat:
         """Test that flight data has correct types."""
         with app.app_context():
             flight = Flight(
-                flight_code='AA101',
+                flight_code='AA_DTYPES_001',
                 origin_airport='JFK',
                 destination_airport='LAX',
                 departure_time=datetime(2026, 3, 15, 10, 0),
@@ -628,7 +628,7 @@ class TestFlightRoutesIntegration:
         with app.app_context():
             # Create a flight
             flight = Flight(
-                flight_code='AA101',
+                flight_code='AA_WORKFLOW_001',
                 origin_airport='JFK',
                 destination_airport='LAX',
                 departure_time=datetime(2026, 3, 15, 10, 0),

@@ -3,7 +3,11 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from ticket_management_system.extensions import db
 from ticket_management_system.models import Booking, BookingStatus, Flight, FlightStatus, SeatClass, Ticket
-from ticket_management_system.exceptions import FlightNotFoundError, SeatUnavailableError
+from ticket_management_system.exceptions import (
+    FlightNotFoundError,
+    SeatUnavailableError,
+    BookingNotFoundError
+)
 
 
 class BookingService:
@@ -231,7 +235,7 @@ class BookingService:
 
         booking = Booking.query.filter_by(id=booking_id).first()
         if not booking:
-            return None
+            raise BookingNotFoundError(booking_id)
 
         # Don't allow updating cancelled or refunded bookings
         if booking.booking_status in (BookingStatus.cancelled, BookingStatus.refunded):
@@ -251,7 +255,7 @@ class BookingService:
         """Cancel a booking."""
         booking = Booking.query.filter_by(id=booking_id).first()
         if not booking:
-            return None
+            raise BookingNotFoundError(booking_id)
 
         # Check if already cancelled or refunded
         if booking.booking_status == BookingStatus.cancelled:

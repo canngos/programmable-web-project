@@ -86,8 +86,11 @@ def add_flight(_current_user):
         )
 
         # Format response
-        response = FlightService.format_flight_detail(new_flight)
-        response['message'] = 'Flight created successfully'
+        flight_data = FlightService.format_flight_detail(new_flight)
+        response = {
+            'flight': flight_data,
+            'message': 'Flight created successfully'
+        }
 
         return jsonify(response), 201
     except ValidationError as err:

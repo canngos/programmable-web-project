@@ -13,7 +13,7 @@ from ticket_management_system.resources.user_service import UserService
 from werkzeug.security import generate_password_hash
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='function')
 def app():
     """Create application for testing with in-memory SQLite database."""
     # Use SQLite in-memory database for tests (isolated, doesn't affect real DB)
@@ -30,7 +30,7 @@ def app():
 
     yield app
 
-    # Clean up: drop all tables after all tests
+    # Clean up: drop all tables after each test
     with app.app_context():
         db.session.remove()
         db.drop_all()
@@ -59,15 +59,8 @@ def test_user(app):
 
         # Refresh to get the ID
         db.session.refresh(user)
-        user_id = user.id
 
         yield user
-
-        # Cleanup
-        user = db.session.get(User, user_id)
-        if user:
-            db.session.delete(user)
-            db.session.commit()
 
 
 @pytest.fixture(scope='function')
@@ -85,15 +78,9 @@ def admin_user(app):
         db.session.commit()
 
         db.session.refresh(user)
-        user_id = user.id
 
         yield user
 
-        # Cleanup
-        user = db.session.get(User, user_id)
-        if user:
-            db.session.delete(user)
-            db.session.commit()
 
 
 @pytest.fixture(scope='function')
@@ -165,12 +152,14 @@ def sample_flights(app):
         from ticket_management_system.models import Flight, FlightStatus
         from decimal import Decimal
         from datetime import datetime
+        import time
 
         flights = []
+        unique_suffix = str(int(time.time() * 1000) % 10000)
 
-        # Create a few sample flights
+        # Create a few sample flights with unique codes
         flight1 = Flight(
-            flight_code='AA101',
+            flight_code=f'AA101_{unique_suffix}',
             origin_airport='JFK - John F Kennedy International',
             destination_airport='LAX - Los Angeles International',
             departure_time=datetime(2026, 3, 15, 10, 0),
@@ -180,7 +169,7 @@ def sample_flights(app):
         )
 
         flight2 = Flight(
-            flight_code='UA202',
+            flight_code=f'UA202_{unique_suffix}',
             origin_airport='ORD - O\'Hare International',
             destination_airport='SFO - San Francisco International',
             departure_time=datetime(2026, 3, 16, 12, 0),
@@ -196,17 +185,8 @@ def sample_flights(app):
 
         db.session.commit()
 
-        # Get IDs
-        flight_ids = [f.id for f in flights]
-
         yield flights
 
-        # Cleanup
-        for flight_id in flight_ids:
-            flight = db.session.get(Flight, flight_id)
-            if flight:
-                db.session.delete(flight)
-        db.session.commit()
 
 
 @pytest.fixture(scope='function')
