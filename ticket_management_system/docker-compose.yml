@@ -41,11 +41,11 @@ services:
       - backend
     # No volumes in production - code is in image
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["/healthcheck.sh"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
 
   nginx:
     image: nginx:alpine
