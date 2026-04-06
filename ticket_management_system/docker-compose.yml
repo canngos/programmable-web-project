@@ -41,7 +41,7 @@ services:
       - backend
     # No volumes in production - code is in image
     healthcheck:
-      test: ["/healthcheck.sh"]
+      test: ["CMD", "/healthcheck.sh"]
       interval: 30s
       timeout: 10s
       retries: 3
