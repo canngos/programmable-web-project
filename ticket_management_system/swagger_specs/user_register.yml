@@ -1,7 +1,12 @@
 summary: User registration
 description: Register a new user account. Returns a JWT token for immediate authentication.
+operationId: registerUser
 tags:
   - Authentication
+consumes:
+  - application/json
+produces:
+  - application/json
 parameters:
   - in: body
     name: body
@@ -24,7 +29,7 @@ parameters:
           example: Doe
         email:
           type: string
-          maxLength: 30
+          maxLength: 255
           format: email
           example: john@example.com
         password:
@@ -72,6 +77,19 @@ responses:
         expires_in:
           type: integer
           example: 86400
+    examples:
+      application/json:
+        message: User registered successfully
+        user:
+          id: "550e8400-e29b-41d4-a716-446655440000"
+          firstname: John
+          lastname: Doe
+          email: john@example.com
+          role: user
+          created_at: "2026-04-06T10:30:00"
+        token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNTUwZTg0MDAtZTI5Yi00MWQ0LWE3MTYtNDQ2NjU1NDQwMDAwIn0.signature"
+        token_type: Bearer
+        expires_in: 86400
   400:
     description: Validation error or missing required fields
     schema:
@@ -82,7 +100,13 @@ responses:
           example: Bad Request
         message:
           type: string
-          example: Missing required fields
+          example: Validation failed
+        errors:
+          type: object
+          example:
+            firstname: ["firstname must be 30 characters or less"]
+            email: ["Not a valid email address"]
+            password: ["Password must be at least 6 characters"]
   409:
     description: Email already exists
     schema:
@@ -94,3 +118,22 @@ responses:
         message:
           type: string
           example: Email already registered
+    examples:
+      application/json:
+        error: Conflict
+        message: "Email john@example.com is already registered"
+  500:
+    description: Internal server error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string
+          example: An unexpected error occurred while processing your request
+    examples:
+      application/json:
+        error: Internal Server Error
+        message: "Database connection failed"

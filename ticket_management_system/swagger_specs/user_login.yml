@@ -1,7 +1,12 @@
 summary: User login
 description: Authenticate a user with email and password. Returns a JWT token for subsequent requests.
+operationId: loginUser
 tags:
   - Authentication
+consumes:
+  - application/json
+produces:
+  - application/json
 parameters:
   - in: body
     name: body
@@ -77,3 +82,13 @@ responses:
         message:
           type: string
           example: Invalid email or password
+  500:
+    description: Internal server error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string

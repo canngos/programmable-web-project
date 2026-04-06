@@ -1,7 +1,10 @@
 summary: List bookings
 description: List bookings for the current user or all users (admin only). Returns paginated results.
+operationId: listBookings
 tags:
   - Bookings
+produces:
+  - application/json
 security:
   - Bearer: []
 parameters:
@@ -98,5 +101,15 @@ responses:
       properties:
         error:
           type: string
+        message:
+          type: string
+  500:
+    description: Internal server error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
         message:
           type: string

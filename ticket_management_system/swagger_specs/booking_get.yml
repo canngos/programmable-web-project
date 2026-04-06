@@ -1,7 +1,10 @@
 summary: Get booking details by ID
 description: Retrieve details of a specific booking. Only the booking owner or admin can view the booking.
+operationId: getBooking
 tags:
   - Bookings
+produces:
+  - application/json
 security:
   - Bearer: []
 parameters:
@@ -97,3 +100,13 @@ responses:
         message:
           type: string
           example: Booking with ID 00000000-0000-0000-0000-000000000001 not found
+  500:
+    description: Internal server error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string

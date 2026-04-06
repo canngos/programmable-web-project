@@ -1,7 +1,12 @@
 summary: Update booking status
+operationId: updateBooking
 description: Update the status of an existing booking. Only the booking owner or admin can update.
 tags:
   - Bookings
+consumes:
+  - application/json
+produces:
+  - application/json
 parameters:
   - name: booking_id
     in: path
@@ -33,60 +38,85 @@ requestBody:
 responses:
   200:
     description: Booking updated successfully
-    content:
-      application/json:
-        schema:
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Booking updated successfully
+        booking:
           type: object
           properties:
-            message:
+            id:
               type: string
-              example: Booking updated successfully
-            booking:
-              type: object
-              properties:
-                id:
-                  type: string
-                  format: uuid
-                user_id:
-                  type: string
-                  format: uuid
-                flight_id:
-                  type: string
-                  format: uuid
-                total_price:
-                  type: string
-                  example: "599.99"
-                booking_status:
-                  type: string
-                  example: paid
-                created_at:
-                  type: string
-                  format: date-time
-                updated_at:
-                  type: string
-                  format: date-time
-                tickets:
-                  type: array
-                  items:
-                    type: object
+              format: uuid
+            user_id:
+              type: string
+              format: uuid
+            flight_id:
+              type: string
+              format: uuid
+            total_price:
+              type: string
+              example: "599.99"
+            booking_status:
+              type: string
+              example: paid
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+            tickets:
+              type: array
+              items:
+                type: object
   400:
     description: Bad request - validation error or invalid status transition
-    content:
-      application/json:
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              example: Bad Request
-            message:
-              type: string
-              example: Cannot update booking with status 'cancelled'
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Cannot update booking with status 'cancelled'
   401:
     description: Unauthorized - missing or invalid token
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
   403:
     description: Forbidden - not allowed to update this booking
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
   404:
     description: Booking not found
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
   500:
     description: Internal server error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string

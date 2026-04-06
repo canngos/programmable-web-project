@@ -1,7 +1,12 @@
 summary: Add a new flight (Admin only)
 description: Create a new flight in the system. Only administrators can add flights.
+operationId: addFlight
 tags:
   - Flights
+consumes:
+  - application/json
+produces:
+  - application/json
 security:
   - Bearer: []
 parameters:
@@ -137,3 +142,13 @@ responses:
         message:
           type: string
           example: Flight code AA1234 already exists
+  500:
+    description: Internal server error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string

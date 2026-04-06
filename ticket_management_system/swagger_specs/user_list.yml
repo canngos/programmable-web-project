@@ -1,7 +1,10 @@
 summary: List all users (Admin only)
 description: Get a paginated list of all users in the system. Only administrators can access this endpoint.
+operationId: listUsers
 tags:
   - Users
+produces:
+  - application/json
 security:
   - Bearer: []
 parameters:
@@ -81,3 +84,13 @@ responses:
         message:
           type: string
           example: Admin privileges required
+  500:
+    description: Internal server error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string
