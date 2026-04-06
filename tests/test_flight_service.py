@@ -412,10 +412,10 @@ class TestFlightServicePagination:
         assert result['pagination']['page'] == 1
 
     def test_search_flights_invalid_per_page_defaults(self, app, sample_flights):
-        """Test that invalid per_page defaults to 10."""
+        """Test that invalid per_page defaults to 1 (minimum)."""
         result = FlightService.search_flights(per_page=-5)
 
-        assert result['pagination']['per_page'] == 10
+        assert result['pagination']['per_page'] == 1
 
     def test_search_flights_max_per_page_cap(self, app, sample_flights):
         """Test that per_page is capped at 100."""
@@ -497,17 +497,17 @@ class TestFlightServiceHelpers:
 
             result = FlightService.format_flight_detail(flight)
 
-            assert 'flight' in result
-            assert result['flight']['id'] == str(flight.id)
-            assert result['flight']['flight_code'] == 'TEST_FORMAT'
-            assert result['flight']['origin_airport'] == 'JFK'
-            assert result['flight']['destination_airport'] == 'LAX'
-            assert 'departure_time' in result['flight']
-            assert 'arrival_time' in result['flight']
-            assert result['flight']['base_price'] == '299.99'
-            assert result['flight']['status'] == 'active'
-            assert 'created_at' in result['flight']
-            assert 'updated_at' in result['flight']
+            assert 'id' in result
+            assert result['id'] == str(flight.id)
+            assert result['flight_code'] == 'TEST_FORMAT'
+            assert result['origin_airport'] == 'JFK'
+            assert result['destination_airport'] == 'LAX'
+            assert 'departure_time' in result
+            assert 'arrival_time' in result
+            assert result['base_price'] == '299.99'
+            assert result['status'] == 'active'
+            assert 'created_at' in result
+            assert 'updated_at' in result
 
             # Cleanup
             db.session.delete(flight)

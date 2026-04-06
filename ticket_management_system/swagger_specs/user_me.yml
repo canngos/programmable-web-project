@@ -1,3 +1,5 @@
+summary: Get current user profile
+description: Retrieve the profile information of the currently authenticated user.
 tags:
   - Users
 security:

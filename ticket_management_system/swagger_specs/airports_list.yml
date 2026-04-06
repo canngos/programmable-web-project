@@ -1,3 +1,5 @@
+summary: List all available airports
+description: Get a list of all distinct airports available in the system
 tags:
   - Flights
 security:
@@ -13,11 +15,11 @@ responses:
           items:
             type: string
           example:
-            - "ATL - Hartsfield-Jackson Atlanta International"
-            - "DFW - Dallas/Fort Worth International"
-            - "JFK - John F Kennedy International"
-            - "LAX - Los Angeles International"
-            - "ORD - O'Hare International"
+            - "ATL"
+            - "DFW"
+            - "JFK"
+            - "LAX"
+            - "ORD"
         count:
           type: integer
           description: Total number of distinct airports

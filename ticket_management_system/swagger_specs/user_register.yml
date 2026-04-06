@@ -1,3 +1,5 @@
+summary: User registration
+description: Register a new user account. Returns a JWT token for immediate authentication.
 tags:
   - Authentication
 parameters:

@@ -5,7 +5,7 @@ from marshmallow import ValidationError
 from ticket_management_system.extensions import cache
 from ticket_management_system.utils import handle_validation_error, handle_general_error, handle_conflict_error
 from ticket_management_system.resources.users import token_required, admin_required
-from ticket_management_system.static.schema.flight_schemas import FlightSearchSchema, AddFlightSchema
+from ticket_management_system.static.schema.flight_schemas import FlightSearchSchema, AddFlightSchema, UpdateFlightSchema
 from ticket_management_system.resources.flight_service import FlightService
 from ticket_management_system.exceptions import FlightAlreadyExistsError, FlightNotFoundError
 
@@ -86,8 +86,11 @@ def add_flight(_current_user):
         )
 
         # Format response
-        response = FlightService.format_flight_detail(new_flight)
-        response['message'] = 'Flight created successfully'
+        flight_data = FlightService.format_flight_detail(new_flight)
+        response = {
+            'flight': flight_data,
+            'message': 'Flight created successfully'
+        }
 
         return jsonify(response), 201
     except ValidationError as err:
@@ -117,3 +120,40 @@ def delete_flight(_current_user, flight_id):
         }), 404
     except Exception as e:  # pylint: disable=broad-exception-caught
         return handle_general_error(e)
+
+
+@flight_bp.route('/<uuid:flight_id>', methods=['PUT'])
+@token_required
+@admin_required
+@swag_from('../swagger_specs/flight_update.yml')
+def update_flight(_current_user, flight_id):
+    """Update a flight by ID (admin only)."""
+    try:
+        # Get and validate request body using Marshmallow schema
+        schema = UpdateFlightSchema()
+        validated_data = schema.load(request.get_json())
+
+        # Update flight using service
+        updated_flight = FlightService.update_flight(
+            flight_id,
+            **validated_data
+        )
+
+        # Format response
+        flight_data = FlightService.format_flight_detail(updated_flight)
+        response = {
+            'flight': flight_data,
+            'message': 'Flight updated successfully'
+        }
+
+        return jsonify(response), 200
+    except ValidationError as err:
+        return handle_validation_error(err)
+    except FlightNotFoundError as err:
+        return jsonify({
+            'error': 'Not Found',
+            'message': err.message
+        }), 404
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return handle_general_error(e)
+

@@ -29,12 +29,12 @@ def create_app():
         "specs_route": "/apidocs/",
         "securityDefinitions": {
             "Bearer": {
-                "type": "apiKey",
-                "name": "Authorization",
-                "in": "header",
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
                 "description": (
-                    'JWT Authorization header using the Bearer scheme. '
-                    'Example: "Authorization: Bearer {token}"'
+                    'JWT Authorization. '
+                    'Enter your token (without "Bearer" - it will be added automatically)'
                 ),
             }
         },

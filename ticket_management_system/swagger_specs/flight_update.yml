@@ -1,29 +1,25 @@
-summary: Add a new flight (Admin only)
-description: Create a new flight in the system. Only administrators can add flights.
+summary: Update a flight (Admin only)
+description: |
+  Update flight details. Only administrators can update flights.
+  At least one field must be provided for update.
 tags:
   - Flights
 security:
   - Bearer: []
 parameters:
+  - name: flight_id
+    in: path
+    required: true
+    schema:
+      type: string
+      format: uuid
+    description: The unique identifier of the flight to update
   - in: body
     name: body
     required: true
     schema:
       type: object
-      required:
-        - flight_code
-        - origin_airport
-        - destination_airport
-        - departure_time
-        - arrival_time
-        - base_price
       properties:
-        flight_code:
-          type: string
-          minLength: 3
-          maxLength: 8
-          description: Unique flight code (will be converted to uppercase)
-          example: AA1234
         origin_airport:
           type: string
           minLength: 3
@@ -53,14 +49,14 @@ parameters:
           description: Base ticket price
           example: 299.99
 responses:
-  201:
-    description: Flight created successfully
+  200:
+    description: Flight updated successfully
     schema:
       type: object
       properties:
         message:
           type: string
-          example: Flight created successfully
+          example: Flight updated successfully
         flight:
           type: object
           properties:
@@ -126,14 +122,25 @@ responses:
         message:
           type: string
           example: Admin privileges required
-  409:
-    description: Flight code already exists
+  404:
+    description: Flight not found
     schema:
       type: object
       properties:
         error:
           type: string
-          example: Conflict
+          example: Not Found
         message:
           type: string
-          example: Flight code AA1234 already exists
+          example: Flight with ID abc123 not found
+  500:
+    description: Internal server error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string
+

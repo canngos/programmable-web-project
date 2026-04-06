@@ -507,16 +507,20 @@ class TestBookingServiceUpdateBooking:
             db.session.delete(flight)
             db.session.commit()
 
-    def test_update_booking_not_found_returns_none(self, app):
-        """Updating non-existent booking returns None."""
+    def test_update_booking_not_found_except_BookingNotFoundError(self, app):
+        """Updating non-existent booking raises BookingNotFoundError."""
         with app.app_context():
-            fake_booking_id = uuid.uuid4()
-            result = BookingService.update_booking(
-                booking_id=fake_booking_id,
-                booking_status="paid"
-            )
+            from ticket_management_system.exceptions import BookingNotFoundError
 
-            assert result is None
+            fake_booking_id = uuid.uuid4()
+            with pytest.raises(BookingNotFoundError) as exc_info:
+                BookingService.update_booking(
+                    booking_id=fake_booking_id,
+                    booking_status="paid"
+                )
+
+            assert exc_info.value.booking_id == fake_booking_id
+            assert "not found" in exc_info.value.message.lower()
 
     def test_update_booking_updates_timestamp(self, app, booking_user):
         """Updating a booking updates the updated_at timestamp."""
@@ -676,13 +680,17 @@ class TestBookingServiceCancelBooking:
             db.session.delete(flight)
             db.session.commit()
 
-    def test_cancel_booking_not_found_returns_none(self, app):
-        """Cancelling non-existent booking returns None."""
+    def test_cancel_booking_not_found_raises_exception(self, app):
+        """Cancelling non-existent booking raises BookingNotFoundError."""
         with app.app_context():
-            fake_booking_id = uuid.uuid4()
-            result = BookingService.cancel_booking(fake_booking_id)
+            from ticket_management_system.exceptions import BookingNotFoundError
 
-            assert result is None
+            fake_booking_id = uuid.uuid4()
+            with pytest.raises(BookingNotFoundError) as exc_info:
+                BookingService.cancel_booking(fake_booking_id)
+
+            assert exc_info.value.booking_id == fake_booking_id
+            assert "not found" in exc_info.value.message.lower()
 
     def test_cancel_booking_updates_timestamp(self, app, booking_user):
         """Cancelling a booking updates the updated_at timestamp."""

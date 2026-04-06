@@ -24,6 +24,6 @@ fi
 echo "Running database migrations..."
 (cd /app/ticket_management_system && PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db upgrade)
 
-# Start application
+# Start application with Gunicorn configuration
 echo "Starting Gunicorn..."
-exec gunicorn --bind 0.0.0.0:5000 --workers 2 --threads 4 --access-logfile - ticket_management_system.app:app
+exec gunicorn --config /app/ticket_management_system/gunicorn_config.py ticket_management_system.app:app

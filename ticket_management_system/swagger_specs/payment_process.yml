@@ -1,3 +1,5 @@
+summary: Process payment for booking
+description: Process a payment for a booking using credit card information. Only the booking owner or admin can pay for a booking.
 tags:
   - Payments
 security:

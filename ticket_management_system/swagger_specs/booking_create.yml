@@ -1,3 +1,5 @@
+summary: Create a new booking
+description: Create a new flight booking with one or more passengers. Only authenticated users can create bookings.
 tags:
   - Bookings
 security:
