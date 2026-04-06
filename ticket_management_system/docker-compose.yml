@@ -23,7 +23,7 @@ services:
   flask-app:
     build:
       context: .
-      dockerfile: ticket_management_system/Dockerfile
+      dockerfile: Dockerfile
     restart: always
     # Port 5000 is only exposed internally to NGINX, not to host
     expose:
