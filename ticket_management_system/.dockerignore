@@ -11,4 +11,3 @@ venv/
 README.md
 *.sqlite3
 instance/
-entrypoint.sh
