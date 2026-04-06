@@ -17,7 +17,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Python dependencies in virtual environment
-COPY ticket_management_system/requirements.txt requirements.txt
+COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
@@ -27,7 +27,7 @@ COPY . .
 RUN adduser -D -u 1000 flaskuser
 
 # Set up entrypoint - copy and fix line endings
-COPY ticket_management_system/entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && \
     sed -i 's/\r$//' /entrypoint.sh
 
