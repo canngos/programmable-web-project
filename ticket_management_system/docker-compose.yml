@@ -15,15 +15,15 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   flask-app:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: ticket_management_system/Dockerfile
     restart: always
     # Port 5000 is only exposed internally to NGINX, not to host
     expose:
@@ -39,12 +39,13 @@ services:
         condition: service_healthy
     networks:
       - backend
+    # No volumes in production - code is in image
     healthcheck:
-      test: ["CMD", "nc", "-z", "127.0.0.1", "5000"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 120s
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   nginx:
     image: nginx:alpine
@@ -62,8 +63,8 @@ services:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/healthz"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 20s
+      retries: 3
+      start_period: 10s
 
 volumes:
   postgres_data:

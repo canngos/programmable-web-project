@@ -5,8 +5,8 @@ echo "=== Starting Flask Application ==="
 
 # Clear Python bytecode cache to ensure fresh imports
 echo "Clearing Python cache..."
-find /app/ticket_management_system -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
-find /app/ticket_management_system -type f -name "*.pyc" -delete 2>/dev/null || true
+find /app -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
+find /app -type f -name "*.pyc" -delete 2>/dev/null || true
 
 FLASK_APP_TARGET="app:app"
 
@@ -17,19 +17,18 @@ while ! nc -z postgres 5432; do
 done
 echo "PostgreSQL is ready!"
 
-# Navigate to the app directory
-cd /app/ticket_management_system
-
-# Check if migrations directory exists
-if [ ! -d "migrations" ]; then
+# Run migration commands from the package directory so Flask-Migrate uses
+# ticket_management_system/migrations as its default location.
+MIGRATIONS_DIR="/app/ticket_management_system/migrations"
+if [ ! -d "$MIGRATIONS_DIR" ]; then
     echo "Initializing migrations..."
-    flask --app "$FLASK_APP_TARGET" db init
+    (cd /app/ticket_management_system && PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db init)
 fi
 
 # Run migrations
 echo "Running database migrations..."
-flask --app "$FLASK_APP_TARGET" db upgrade
+(cd /app/ticket_management_system && PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db upgrade)
 
 # Start application with Gunicorn configuration
 echo "Starting Gunicorn..."
-exec gunicorn --config /app/ticket_management_system/gunicorn_config.py app:app
+exec gunicorn --config /app/ticket_management_system/gunicorn_config.py ticket_management_system.app:app

@@ -16,22 +16,20 @@ RUN apk add --no-cache \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Create the nested package structure
-RUN mkdir -p /app/ticket_management_system
-
 # Install Python dependencies in virtual environment
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY ticket_management_system/requirements.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code into the nested directory
-COPY . /app/ticket_management_system/
+# Copy application code
+COPY . .
 
 # Create non-root user
 RUN adduser -D -u 1000 flaskuser
 
 # Set up entrypoint - copy and fix line endings
-COPY entrypoint.sh /entrypoint.sh
-RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
+COPY ticket_management_system/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    sed -i 's/\r$//' /entrypoint.sh
 
 # Change ownership of app and virtual environment
 RUN chown -R flaskuser:flaskuser /app /opt/venv
