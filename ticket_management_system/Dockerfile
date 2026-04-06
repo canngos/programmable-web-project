@@ -31,8 +31,7 @@ RUN adduser -D -u 1000 flaskuser
 
 # Set up entrypoint - copy and fix line endings
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && \
-    sed -i 's/\r$//' /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 # Change ownership of app and virtual environment
 RUN chown -R flaskuser:flaskuser /app /opt/venv
