@@ -8,7 +8,7 @@ echo "Clearing Python cache..."
 find /app/ticket_management_system -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
 find /app/ticket_management_system -type f -name "*.pyc" -delete 2>/dev/null || true
 
-FLASK_APP_TARGET="ticket_management_system.app:app"
+FLASK_APP_TARGET="app:app"
 
 # Wait for PostgreSQL
 echo "Waiting for PostgreSQL..."
@@ -23,13 +23,13 @@ cd /app/ticket_management_system
 # Check if migrations directory exists
 if [ ! -d "migrations" ]; then
     echo "Initializing migrations..."
-    PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db init
+    flask --app "$FLASK_APP_TARGET" db init
 fi
 
 # Run migrations
 echo "Running database migrations..."
-PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db upgrade
+flask --app "$FLASK_APP_TARGET" db upgrade
 
 # Start application with Gunicorn configuration
 echo "Starting Gunicorn..."
-exec gunicorn --config /app/ticket_management_system/gunicorn_config.py ticket_management_system.app:app
+exec gunicorn --config /app/ticket_management_system/gunicorn_config.py app:app
