@@ -21,12 +21,7 @@ echo "PostgreSQL is ready!"
 cd /app/ticket_management_system
 
 # Check if migrations directory exists
-<<<<<<< HEAD
 if [ ! -d "migrations" ]; then
-=======
-MIGRATIONS_DIR="/app/ticket_management_system/migrations"
-if [ ! -d "$MIGRATIONS_DIR" ]; then
->>>>>>> 8738e07 (fix)
     echo "Initializing migrations..."
     PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db init
 fi
