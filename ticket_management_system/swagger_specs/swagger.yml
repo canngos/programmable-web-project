@@ -1,0 +1,1318 @@
+swagger: '2.0'
+info:
+  title: Flight Management System API
+  description: RESTful API for managing flights, bookings, and user authentication
+  version: 1.0.0
+basePath: /api
+host: localhost:5000
+schemes:
+- http
+- https
+consumes:
+- application/json
+produces:
+- application/json
+securityDefinitions:
+  Bearer:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: 'JWT Authorization header using the Bearer scheme. Example: "Authorization:
+      Bearer {token}"'
+parameters:
+  PageParam:
+    name: page
+    in: query
+    type: integer
+    default: 1
+    description: Page number (1-indexed)
+  PerPageParam:
+    name: per_page
+    in: query
+    type: integer
+    default: 10
+    description: Number of items per page (max 100)
+  BookingIdParam:
+    name: booking_id
+    in: path
+    required: true
+    type: string
+    format: uuid
+    description: Booking identifier
+  FlightIdParam:
+    name: flight_id
+    in: path
+    required: true
+    type: string
+    format: uuid
+    description: Flight identifier
+definitions:
+  Error:
+    type: object
+    properties:
+      error:
+        type: string
+        description: Error type
+        example: Bad Request
+      message:
+        type: string
+        description: Detailed error message
+        example: Validation failed
+    required:
+    - error
+    - message
+  ValidationError:
+    type: object
+    properties:
+      error:
+        type: string
+        example: Bad Request
+      message:
+        type: string
+        example: Validation failed
+      errors:
+        type: object
+        additionalProperties: true
+        example:
+          email:
+          - Not a valid email address
+          password:
+          - Password must be at least 6 characters
+    required:
+    - error
+    - message
+  AuthError:
+    type: object
+    properties:
+      error:
+        type: string
+        example: Unauthorized
+      message:
+        type: string
+        example: Invalid or missing authentication token
+    required:
+    - error
+    - message
+  NotFoundError:
+    type: object
+    properties:
+      error:
+        type: string
+        example: Not Found
+      message:
+        type: string
+        example: Resource not found
+    required:
+    - error
+    - message
+  ConflictError:
+    type: object
+    properties:
+      error:
+        type: string
+        example: Conflict
+      message:
+        type: string
+        example: Resource already exists or operation cannot be performed
+    required:
+    - error
+    - message
+  ForbiddenError:
+    type: object
+    properties:
+      error:
+        type: string
+        example: Forbidden
+      message:
+        type: string
+        example: You do not have permission to access this resource
+    required:
+    - error
+    - message
+  User:
+    type: object
+    properties:
+      id:
+        type: string
+        format: uuid
+      firstname:
+        type: string
+      lastname:
+        type: string
+      email:
+        type: string
+      role:
+        type: string
+        enum:
+        - user
+        - admin
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+  UserResponse:
+    type: object
+    properties:
+      message:
+        type: string
+      user:
+        $ref: '#/definitions/User'
+      token:
+        type: string
+        description: JWT token
+      token_type:
+        type: string
+        example: Bearer
+      expires_in:
+        type: integer
+        example: 86400
+  Ticket:
+    type: object
+    properties:
+      id:
+        type: string
+        format: uuid
+      passenger_name:
+        type: string
+      passenger_passport_num:
+        type: string
+      seat_num:
+        type: string
+      seat_class:
+        type: string
+        enum:
+        - economy
+        - business
+        - first
+      price:
+        type: string
+      created_at:
+        type: string
+        format: date-time
+  Booking:
+    type: object
+    properties:
+      id:
+        type: string
+        format: uuid
+      user_id:
+        type: string
+        format: uuid
+      flight_id:
+        type: string
+        format: uuid
+      total_price:
+        type: string
+      booking_status:
+        type: string
+        enum:
+        - booked
+        - paid
+        - cancelled
+        - refunded
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+      tickets:
+        type: array
+        items:
+          $ref: '#/definitions/Ticket'
+  BookingResponse:
+    type: object
+    properties:
+      message:
+        type: string
+      booking:
+        $ref: '#/definitions/Booking'
+  Flight:
+    type: object
+    properties:
+      id:
+        type: string
+        format: uuid
+      flight_code:
+        type: string
+      origin_airport:
+        type: string
+      destination_airport:
+        type: string
+      departure_time:
+        type: string
+        format: date-time
+      arrival_time:
+        type: string
+        format: date-time
+      base_price:
+        type: string
+      status:
+        type: string
+        enum:
+        - active
+        - inactive
+        - started
+        - en_route
+        - landed
+        - cancelled
+        - delayed
+      created_at:
+        type: string
+        format: date-time
+  Pagination:
+    type: object
+    properties:
+      page:
+        type: integer
+      per_page:
+        type: integer
+      total_pages:
+        type: integer
+      total_items:
+        type: integer
+      has_next:
+        type: boolean
+      has_prev:
+        type: boolean
+      next_page:
+        type: integer
+        nullable: true
+      prev_page:
+        type: integer
+        nullable: true
+  FlightListResponse:
+    type: object
+    properties:
+      flights:
+        type: array
+        items:
+          $ref: '#/definitions/Flight'
+      pagination:
+        $ref: '#/definitions/Pagination'
+  BookingListResponse:
+    type: object
+    properties:
+      bookings:
+        type: array
+        items:
+          $ref: '#/definitions/Booking'
+      pagination:
+        $ref: '#/definitions/Pagination'
+  UserListResponse:
+    type: object
+    properties:
+      users:
+        type: array
+        items:
+          $ref: '#/definitions/User'
+      pagination:
+        $ref: '#/definitions/Pagination'
+  AirportListResponse:
+    type: object
+    properties:
+      airports:
+        type: array
+        items:
+          type: string
+      count:
+        type: integer
+  SeatAvailabilityResponse:
+    type: object
+    properties:
+      flight_id:
+        type: string
+        format: uuid
+      seat_num:
+        type: string
+      available:
+        type: boolean
+paths:
+  /users/register:
+    post:
+      summary: User registration
+      description: Register a new user account. Returns a JWT token for immediate
+        authentication.
+      operationId: registerUser
+      tags:
+      - Authentication
+      parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+          - firstname
+          - lastname
+          - email
+          - password
+          properties:
+            firstname:
+              type: string
+              maxLength: 30
+              example: John
+            lastname:
+              type: string
+              maxLength: 30
+              example: Doe
+            email:
+              type: string
+              format: email
+              example: john@example.com
+            password:
+              type: string
+              minLength: 6
+              format: password
+              example: password123
+            role:
+              type: string
+              enum:
+              - user
+              - admin
+              default: user
+      responses:
+        201:
+          description: User registered successfully
+          schema:
+            $ref: '#/definitions/UserResponse'
+          examples:
+            application/json:
+              message: User registered successfully
+              user:
+                id: 550e8400-e29b-41d4-a716-446655440000
+                firstname: John
+                lastname: Doe
+                email: john@example.com
+                role: user
+                created_at: '2026-04-06T10:30:00'
+              token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+              token_type: Bearer
+              expires_in: 86400
+        400:
+          description: Validation error
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: &id001
+              error: Bad Request
+              message: Validation failed
+              errors:
+                field:
+                - Validation error message
+        409:
+          description: Email already exists
+          schema:
+            $ref: '#/definitions/ConflictError'
+          examples:
+            application/json: &id004
+              error: Conflict
+              message: Resource already exists or operation cannot be completed
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: &id002
+              error: Internal Server Error
+              message: An unexpected error occurred while processing your request
+  /users/login:
+    post:
+      summary: User login
+      description: Authenticate a user with email and password. Returns a JWT token
+        for subsequent requests.
+      operationId: loginUser
+      tags:
+      - Authentication
+      parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+          - email
+          - password
+          properties:
+            email:
+              type: string
+              format: email
+              example: john@example.com
+            password:
+              type: string
+              minLength: 6
+              example: password123
+      responses:
+        200:
+          description: Login successful
+          schema:
+            $ref: '#/definitions/UserResponse'
+        400:
+          description: Missing required fields
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Invalid credentials
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: &id003
+              error: Unauthorized
+              message: Invalid or missing authentication token
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+  /users/me:
+    get:
+      summary: Get current user profile
+      description: Retrieve the profile information of the currently authenticated
+        user.
+      operationId: getCurrentUser
+      tags:
+      - Users
+      security:
+      - Bearer: []
+      responses:
+        200:
+          description: User profile details
+          schema:
+            type: object
+            properties:
+              user:
+                $ref: '#/definitions/User'
+        401:
+          description: Invalid or missing token
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+    patch:
+      summary: Update current user profile
+      description: Update the profile information of the currently authenticated user.
+      operationId: updateCurrentUser
+      tags:
+      - Users
+      security:
+      - Bearer: []
+      parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            firstname:
+              type: string
+              maxLength: 30
+            lastname:
+              type: string
+              maxLength: 30
+            email:
+              type: string
+              format: email
+            password:
+              type: string
+              minLength: 6
+      responses:
+        200:
+          description: Profile updated successfully
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              user:
+                $ref: '#/definitions/User'
+        400:
+          description: Validation error
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        409:
+          description: Email already in use
+          schema:
+            $ref: '#/definitions/ConflictError'
+          examples:
+            application/json: *id004
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+  /users/:
+    get:
+      summary: List all users (Admin only)
+      description: Get a paginated list of all users in the system. Only administrators
+        can access this endpoint.
+      operationId: listUsers
+      tags:
+      - Users
+      security:
+      - Bearer: []
+      parameters:
+      - $ref: '#/parameters/PageParam'
+      - $ref: '#/parameters/PerPageParam'
+      responses:
+        200:
+          description: Paginated list of all users
+          schema:
+            $ref: '#/definitions/UserListResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        403:
+          description: Forbidden - Admin privileges required
+          schema:
+            $ref: '#/definitions/ForbiddenError'
+          examples:
+            application/json: &id005
+              error: Forbidden
+              message: You do not have permission to access this resource
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+  /flights/airports:
+    get:
+      summary: List all available airports
+      description: Get a list of all distinct airports available in the system.
+      operationId: listAirports
+      tags:
+      - Flights
+      security:
+      - Bearer: []
+      responses:
+        200:
+          description: List of airports
+          schema:
+            $ref: '#/definitions/AirportListResponse'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+  /flights/search:
+    get:
+      summary: Search flights
+      description: Search for flights with optional filters. Returns paginated results.
+      operationId: searchFlights
+      tags:
+      - Flights
+      security:
+      - Bearer: []
+      parameters:
+      - name: origin_airport
+        in: query
+        type: string
+        description: Filter by origin airport
+      - name: destination_airport
+        in: query
+        type: string
+        description: Filter by destination airport
+      - name: departure_date
+        in: query
+        type: string
+        format: date
+        description: Filter by departure date (YYYY-MM-DD)
+      - name: arrival_date
+        in: query
+        type: string
+        format: date
+        description: Filter by arrival date (YYYY-MM-DD)
+      - $ref: '#/parameters/PageParam'
+      - $ref: '#/parameters/PerPageParam'
+      responses:
+        200:
+          description: Paginated list of flights
+          schema:
+            $ref: '#/definitions/FlightListResponse'
+          examples:
+            application/json:
+              flights:
+              - id: flight-001
+                flight_code: AA1234
+                origin_airport: JFK
+                destination_airport: LAX
+                departure_time: '2026-03-15T10:30:00'
+                arrival_time: '2026-03-15T14:45:00'
+                base_price: '299.99'
+                status: active
+                created_at: '2026-01-01T08:00:00'
+              pagination:
+                page: 1
+                per_page: 10
+                total_pages: 5
+                total_items: 42
+                has_next: true
+                has_prev: false
+                next_page: 2
+                prev_page: null
+        400:
+          description: Validation error
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+  /flights:
+    post:
+      summary: Add a new flight (Admin only)
+      description: Create a new flight in the system. Only administrators can add
+        flights.
+      operationId: addFlight
+      tags:
+      - Flights
+      security:
+      - Bearer: []
+      parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+          - flight_code
+          - origin_airport
+          - destination_airport
+          - departure_time
+          - arrival_time
+          - base_price
+          properties:
+            flight_code:
+              type: string
+              minLength: 3
+              maxLength: 8
+              example: AA1234
+            origin_airport:
+              type: string
+              example: JFK
+            destination_airport:
+              type: string
+              example: LAX
+            departure_time:
+              type: string
+              format: date-time
+              example: '2026-12-25T10:30:00'
+            arrival_time:
+              type: string
+              format: date-time
+              example: '2026-12-25T14:45:00'
+            base_price:
+              type: number
+              minimum: 0
+              example: 299.99
+      responses:
+        201:
+          description: Flight created successfully
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              flight:
+                $ref: '#/definitions/Flight'
+        400:
+          description: Validation error
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        403:
+          description: Forbidden - Admin privileges required
+          schema:
+            $ref: '#/definitions/ForbiddenError'
+          examples:
+            application/json: *id005
+        409:
+          description: Flight code already exists
+          schema:
+            $ref: '#/definitions/ConflictError'
+          examples:
+            application/json: *id004
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+  /flights/{flight_id}:
+    delete:
+      summary: Delete a flight (Admin only)
+      description: Delete a flight from the system. Only administrators can delete
+        flights.
+      operationId: deleteFlight
+      tags:
+      - Flights
+      security:
+      - Bearer: []
+      parameters:
+      - $ref: '#/parameters/FlightIdParam'
+      responses:
+        200:
+          description: Flight deleted successfully
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        403:
+          description: Forbidden - Admin privileges required
+          schema:
+            $ref: '#/definitions/ForbiddenError'
+          examples:
+            application/json: *id005
+        404:
+          description: Flight not found
+          schema:
+            $ref: '#/definitions/NotFoundError'
+          examples:
+            application/json: &id006
+              error: Not Found
+              message: Resource not found
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+    put:
+      summary: Update a flight (Admin only)
+      description: Update flight details. Only administrators can update flights.
+      operationId: updateFlight
+      tags:
+      - Flights
+      security:
+      - Bearer: []
+      parameters:
+      - $ref: '#/parameters/FlightIdParam'
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            origin_airport:
+              type: string
+            destination_airport:
+              type: string
+            departure_time:
+              type: string
+              format: date-time
+            arrival_time:
+              type: string
+              format: date-time
+            base_price:
+              type: number
+      responses:
+        200:
+          description: Flight updated successfully
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              flight:
+                $ref: '#/definitions/Flight'
+        400:
+          description: Validation error
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        403:
+          description: Forbidden - Admin privileges required
+          schema:
+            $ref: '#/definitions/ForbiddenError'
+          examples:
+            application/json: *id005
+        404:
+          description: Flight not found
+          schema:
+            $ref: '#/definitions/NotFoundError'
+          examples:
+            application/json: *id006
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+  /bookings:
+    post:
+      summary: Create a new booking
+      description: Create a new flight booking with one or more passengers.
+      operationId: createBooking
+      tags:
+      - Bookings
+      security:
+      - Bearer: []
+      parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+          - flight_id
+          - passengers
+          properties:
+            flight_id:
+              type: string
+              format: uuid
+            passengers:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                required:
+                - passenger_name
+                - passenger_passport_num
+                - seat_num
+                properties:
+                  passenger_name:
+                    type: string
+                  passenger_passport_num:
+                    type: string
+                  seat_num:
+                    type: string
+                  seat_class:
+                    type: string
+                    enum:
+                    - economy
+                    - business
+                    - first
+      responses:
+        201:
+          description: Booking created successfully
+          schema:
+            $ref: '#/definitions/BookingResponse'
+          examples:
+            application/json:
+              message: Booking created successfully
+              booking:
+                id: 123e4567-e89b-12d3-a456-426614174000
+                user_id: 550e8400-e29b-41d4-a716-446655440000
+                flight_id: fe4a1338-4b98-4b51-9f5c-1234567890ab
+                total_price: '900.00'
+                booking_status: booked
+                created_at: '2026-04-06T10:30:00'
+                updated_at: '2026-04-06T10:30:00'
+                tickets:
+                - id: ticket-001
+                  passenger_name: John Doe
+                  passenger_passport_num: P12345678
+                  seat_num: 12A
+                  seat_class: economy
+                  price: '300.00'
+                  created_at: '2026-04-06T10:30:00'
+                - id: ticket-002
+                  passenger_name: Jane Doe
+                  passenger_passport_num: P87654321
+                  seat_num: 12B
+                  seat_class: economy
+                  price: '300.00'
+                  created_at: '2026-04-06T10:30:00'
+        400:
+          description: Validation error
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        404:
+          description: Flight not found
+          schema:
+            $ref: '#/definitions/NotFoundError'
+          examples:
+            application/json: *id006
+        409:
+          description: Seat unavailable
+          schema:
+            $ref: '#/definitions/ConflictError'
+          examples:
+            application/json: *id004
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+    get:
+      summary: List bookings
+      description: List bookings for the current user or all users (admin only).
+      operationId: listBookings
+      tags:
+      - Bookings
+      security:
+      - Bearer: []
+      parameters:
+      - $ref: '#/parameters/PageParam'
+      - $ref: '#/parameters/PerPageParam'
+      - name: all
+        in: query
+        type: boolean
+        description: Admin only - return all bookings
+      responses:
+        200:
+          description: Paginated list of bookings
+          schema:
+            $ref: '#/definitions/BookingListResponse'
+        400:
+          description: Validation error
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+  /bookings/{booking_id}:
+    get:
+      summary: Get booking details
+      description: Retrieve details of a specific booking.
+      operationId: getBooking
+      tags:
+      - Bookings
+      security:
+      - Bearer: []
+      parameters:
+      - $ref: '#/parameters/BookingIdParam'
+      responses:
+        200:
+          description: Booking details
+          schema:
+            type: object
+            properties:
+              booking:
+                $ref: '#/definitions/Booking'
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        403:
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ForbiddenError'
+          examples:
+            application/json: *id005
+        404:
+          description: Booking not found
+          schema:
+            $ref: '#/definitions/NotFoundError'
+          examples:
+            application/json: *id006
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+    put:
+      summary: Update booking status
+      description: Update the status of an existing booking.
+      operationId: updateBooking
+      tags:
+      - Bookings
+      security:
+      - Bearer: []
+      parameters:
+      - $ref: '#/parameters/BookingIdParam'
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+          - booking_status
+          properties:
+            booking_status:
+              type: string
+              enum:
+              - booked
+              - paid
+              - cancelled
+              - refunded
+      responses:
+        200:
+          description: Booking updated successfully
+          schema:
+            $ref: '#/definitions/BookingResponse'
+        400:
+          description: Validation error
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        403:
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ForbiddenError'
+          examples:
+            application/json: *id005
+        404:
+          description: Booking not found
+          schema:
+            $ref: '#/definitions/NotFoundError'
+          examples:
+            application/json: *id006
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+    delete:
+      summary: Cancel booking
+      description: Cancel an existing booking by setting its status to cancelled.
+      operationId: cancelBooking
+      tags:
+      - Bookings
+      security:
+      - Bearer: []
+      parameters:
+      - $ref: '#/parameters/BookingIdParam'
+      responses:
+        200:
+          description: Booking cancelled successfully
+          schema:
+            $ref: '#/definitions/BookingResponse'
+        400:
+          description: Validation error
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        403:
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ForbiddenError'
+          examples:
+            application/json: *id005
+        404:
+          description: Booking not found
+          schema:
+            $ref: '#/definitions/NotFoundError'
+          examples:
+            application/json: *id006
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+  /bookings/availability:
+    get:
+      summary: Check seat availability
+      description: Check if a specific seat is available on a given flight.
+      operationId: checkAvailability
+      tags:
+      - Bookings
+      security:
+      - Bearer: []
+      parameters:
+      - name: flight_id
+        in: query
+        required: true
+        type: string
+        format: uuid
+      - name: seat_num
+        in: query
+        required: true
+        type: string
+      responses:
+        200:
+          description: Seat availability result
+          schema:
+            $ref: '#/definitions/SeatAvailabilityResponse'
+        400:
+          description: Validation error
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        404:
+          description: Flight not found
+          schema:
+            $ref: '#/definitions/NotFoundError'
+          examples:
+            application/json: *id006
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002
+  /payments:
+    post:
+      summary: Process payment for booking
+      description: Process a payment for a booking using credit card information.
+      operationId: processPayment
+      tags:
+      - Payments
+      security:
+      - Bearer: []
+      parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+          - booking_number
+          - credit_card_number
+          - security_code
+          properties:
+            booking_number:
+              type: string
+            credit_card_number:
+              type: string
+              minLength: 16
+              maxLength: 16
+            security_code:
+              type: string
+              minLength: 3
+              maxLength: 3
+      responses:
+        200:
+          description: Payment successful
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              booking_number:
+                type: string
+              status:
+                type: string
+        400:
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/ValidationError'
+          examples:
+            application/json: *id001
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *id003
+        403:
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/ForbiddenError'
+          examples:
+            application/json: *id005
+        404:
+          description: Booking not found
+          schema:
+            $ref: '#/definitions/NotFoundError'
+          examples:
+            application/json: *id006
+        409:
+          description: Conflict
+          schema:
+            $ref: '#/definitions/ConflictError'
+          examples:
+            application/json: *id004
+        500:
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+          examples:
+            application/json: *id002

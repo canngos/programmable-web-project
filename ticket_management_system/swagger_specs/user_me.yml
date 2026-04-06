@@ -1,7 +1,10 @@
 summary: Get current user profile
 description: Retrieve the profile information of the currently authenticated user.
+operationId: getCurrentUser
 tags:
   - Users
+produces:
+  - application/json
 security:
   - Bearer: []
 responses:
@@ -41,3 +44,13 @@ responses:
         message:
           type: string
           example: No token provided
+  500:
+    description: Internal server error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string

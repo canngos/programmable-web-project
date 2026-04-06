@@ -2,17 +2,21 @@ summary: Update a flight (Admin only)
 description: |
   Update flight details. Only administrators can update flights.
   At least one field must be provided for update.
+operationId: updateFlight
 tags:
   - Flights
+consumes:
+  - application/json
+produces:
+  - application/json
 security:
   - Bearer: []
 parameters:
   - name: flight_id
     in: path
     required: true
-    schema:
-      type: string
-      format: uuid
+    type: string
+    format: uuid
     description: The unique identifier of the flight to update
   - in: body
     name: body

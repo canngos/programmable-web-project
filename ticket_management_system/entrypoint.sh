@@ -3,6 +3,11 @@ set -e
 
 echo "=== Starting Flask Application ==="
 
+# Clear Python bytecode cache to ensure fresh imports
+echo "Clearing Python cache..."
+find /app -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
+find /app -type f -name "*.pyc" -delete 2>/dev/null || true
+
 FLASK_APP_TARGET="app:app"
 
 # Wait for PostgreSQL

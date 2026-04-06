@@ -1,7 +1,12 @@
 summary: Process payment for booking
+operationId: processPayment
 description: Process a payment for a booking using credit card information. Only the booking owner or admin can pay for a booking.
 tags:
   - Payments
+consumes:
+  - application/json
+produces:
+  - application/json
 security:
   - Bearer: []
 parameters:

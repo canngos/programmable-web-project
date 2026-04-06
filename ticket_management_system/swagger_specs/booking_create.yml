@@ -1,7 +1,12 @@
 summary: Create a new booking
 description: Create a new flight booking with one or more passengers. Only authenticated users can create bookings.
+operationId: createBooking
 tags:
   - Bookings
+consumes:
+  - application/json
+produces:
+  - application/json
 security:
   - Bearer: []
 parameters:
@@ -111,6 +116,39 @@ responses:
                   created_at:
                     type: string
                     format: date-time
+    examples:
+      application/json:
+        message: Booking created successfully
+        booking:
+          id: "123e4567-e89b-12d3-a456-426614174000"
+          user_id: "550e8400-e29b-41d4-a716-446655440000"
+          flight_id: "fe4a1338-4b98-4b51-9f5c-1234567890ab"
+          total_price: "900.00"
+          booking_status: booked
+          created_at: "2026-04-06T10:30:00"
+          updated_at: "2026-04-06T10:30:00"
+          tickets:
+            - id: "ticket-001"
+              passenger_name: John Doe
+              passenger_passport_num: P12345678
+              seat_num: 12A
+              seat_class: economy
+              price: "300.00"
+              created_at: "2026-04-06T10:30:00"
+            - id: "ticket-002"
+              passenger_name: Jane Doe
+              passenger_passport_num: P87654321
+              seat_num: 12B
+              seat_class: economy
+              price: "300.00"
+              created_at: "2026-04-06T10:30:00"
+            - id: "ticket-003"
+              passenger_name: Baby Doe
+              passenger_passport_num: P11223344
+              seat_num: 12C
+              seat_class: economy
+              price: "300.00"
+              created_at: "2026-04-06T10:30:00"
   400:
     description: Validation error or bad request
     schema:
@@ -125,6 +163,13 @@ responses:
         errors:
           type: object
           description: Field-specific validation errors when schema validation fails
+    examples:
+      application/json:
+        error: Bad Request
+        message: Validation failed
+        errors:
+          passengers: ["At least 1 passenger is required"]
+          flight_id: ["Invalid UUID format"]
   401:
     description: Invalid or missing token
     schema:
@@ -134,6 +179,10 @@ responses:
           type: string
         message:
           type: string
+    examples:
+      application/json:
+        error: Unauthorized
+        message: "Invalid or missing authentication token"
   404:
     description: Flight not found
     schema:
@@ -145,6 +194,10 @@ responses:
         message:
           type: string
           example: Flight with ID fe4a1338-4b98-4b51-9f5c-1234567890ab not found
+    examples:
+      application/json:
+        error: Not Found
+        message: "Flight with ID fe4a1338-4b98-4b51-9f5c-1234567890ab not found"
   409:
     description: Seat unavailable
     schema:
@@ -156,3 +209,21 @@ responses:
         message:
           type: string
           example: Seat 12A is already booked
+    examples:
+      application/json:
+        error: Conflict
+        message: "Seat 12A is already booked on this flight"
+  500:
+    description: Internal server error
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string
+    examples:
+      application/json:
+        error: Internal Server Error
+        message: "Database error while creating booking"

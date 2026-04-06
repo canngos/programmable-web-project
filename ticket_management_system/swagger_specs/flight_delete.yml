@@ -1,11 +1,14 @@
-Delete Flight
----
-tags:
-  - Flights
-summary: Delete a flight by ID (Admin only)
+summary: Delete a flight (Admin only)
 description: |
   Delete a flight from the system. This operation will cascade delete all related bookings and tickets.
   Only administrators can delete flights.
+operationId: deleteFlight
+tags:
+  - Flights
+consumes:
+  - application/json
+produces:
+  - application/json
 security:
   - Bearer: []
 parameters:
