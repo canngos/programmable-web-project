@@ -9,7 +9,8 @@ RUN apk add --no-cache \
     postgresql-dev \
     libffi-dev \
     postgresql-client \
-    netcat-openbsd
+    netcat-openbsd \
+    curl
 
 # Create virtual environment
 RUN python -m venv /opt/venv

@@ -1,3 +1,5 @@
+summary: Get booking details by ID
+description: Retrieve details of a specific booking. Only the booking owner or admin can view the booking.
 tags:
   - Bookings
 security:

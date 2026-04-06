@@ -1,3 +1,5 @@
+summary: List all users (Admin only)
+description: Get a paginated list of all users in the system. Only administrators can access this endpoint.
 tags:
   - Users
 security:

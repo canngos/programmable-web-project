@@ -160,8 +160,8 @@ def sample_flights(app):
         # Create a few sample flights with unique codes
         flight1 = Flight(
             flight_code=f'AA101_{unique_suffix}',
-            origin_airport='JFK - John F Kennedy International',
-            destination_airport='LAX - Los Angeles International',
+            origin_airport='JFK',
+            destination_airport='LAX',
             departure_time=datetime(2026, 3, 15, 10, 0),
             arrival_time=datetime(2026, 3, 15, 14, 0),
             base_price=Decimal('299.99'),
@@ -170,8 +170,8 @@ def sample_flights(app):
 
         flight2 = Flight(
             flight_code=f'UA202_{unique_suffix}',
-            origin_airport='ORD - O\'Hare International',
-            destination_airport='SFO - San Francisco International',
+            origin_airport='ORD',
+            destination_airport='SFO',
             departure_time=datetime(2026, 3, 16, 12, 0),
             arrival_time=datetime(2026, 3, 16, 15, 30),
             base_price=Decimal('249.99'),

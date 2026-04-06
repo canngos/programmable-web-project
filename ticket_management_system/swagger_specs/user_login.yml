@@ -1,3 +1,5 @@
+summary: User login
+description: Authenticate a user with email and password. Returns a JWT token for subsequent requests.
 tags:
   - Authentication
 parameters:

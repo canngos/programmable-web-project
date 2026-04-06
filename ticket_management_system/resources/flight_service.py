@@ -153,3 +153,29 @@ class FlightService:
 
         db.session.delete(flight)
         db.session.commit()
+
+    @staticmethod
+    def update_flight(flight_id, **kwargs):
+        """Update a flight by ID."""
+        from ticket_management_system.exceptions import FlightNotFoundError
+
+        flight = Flight.query.filter_by(id=flight_id).first()
+
+        if not flight:
+            raise FlightNotFoundError(flight_id)
+
+        # Update only provided fields
+        if 'origin_airport' in kwargs:
+            flight.origin_airport = kwargs['origin_airport']
+        if 'destination_airport' in kwargs:
+            flight.destination_airport = kwargs['destination_airport']
+        if 'departure_time' in kwargs:
+            flight.departure_time = kwargs['departure_time']
+        if 'arrival_time' in kwargs:
+            flight.arrival_time = kwargs['arrival_time']
+        if 'base_price' in kwargs:
+            flight.base_price = kwargs['base_price']
+
+        db.session.commit()
+        return flight
+

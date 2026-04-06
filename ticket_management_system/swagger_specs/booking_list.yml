@@ -1,3 +1,5 @@
+summary: List bookings
+description: List bookings for the current user or all users (admin only). Returns paginated results.
 tags:
   - Bookings
 security:

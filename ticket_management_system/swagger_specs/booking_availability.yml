@@ -1,3 +1,5 @@
+summary: Check seat availability
+description: Check if a specific seat is available on a given flight
 tags:
   - Bookings
 security:

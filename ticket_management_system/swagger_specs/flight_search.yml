@@ -1,3 +1,5 @@
+summary: Search flights
+description: Search for flights with optional filters by origin, destination, and dates. Returns paginated results.
 tags:
   - Flights
 security:
@@ -58,10 +60,10 @@ responses:
                 example: AA1234
               origin_airport:
                 type: string
-                example: JFK - John F Kennedy International
+                example: JFK
               destination_airport:
                 type: string
-                example: LAX - Los Angeles International
+                example: LAX
               departure_time:
                 type: string
                 format: date-time

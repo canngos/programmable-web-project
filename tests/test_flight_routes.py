@@ -3,9 +3,9 @@ Unit tests for flight routes endpoints.
 Tests all HTTP endpoints in the flight routes blueprint.
 """
 
-import pytest
 from datetime import datetime
 from decimal import Decimal
+from unittest.mock import patch
 from ticket_management_system.extensions import db
 from ticket_management_system.models import Flight, FlightStatus
 
@@ -620,6 +620,584 @@ class TestFlightSearchEdgeCases:
             assert 'per_page' in data['errors']
 
 
+class TestUpdateFlightEndpoint:
+    """Test PUT /api/flights/{id} endpoint."""
+
+    def test_update_flight_as_admin(self, client, app, admin_headers):
+        """Test updating a flight as admin."""
+        with app.app_context():
+            # Create a test flight
+            test_flight = Flight(
+                flight_code='TESTUPD001',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            # Update the flight
+            update_data = {
+                'base_price': 399.99
+            }
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json=update_data,
+                headers=admin_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert 'message' in data
+            assert 'Flight updated successfully' in data['message']
+            assert 'flight' in data
+            assert str(data['flight']['base_price']) == '399.99'
+
+            # Verify in database
+            updated_flight = Flight.query.filter_by(id=flight_id).first()
+            assert updated_flight.base_price == Decimal('399.99')
+
+            # Cleanup
+            db.session.delete(updated_flight)
+            db.session.commit()
+
+    def test_update_flight_origin_airport(self, client, app, admin_headers):
+        """Test updating only the origin airport."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD002',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'origin_airport': 'ORD'},
+                headers=admin_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['flight']['origin_airport'] == 'ORD'
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_destination_airport(self, client, app, admin_headers):
+        """Test updating only the destination airport."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD003',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'destination_airport': 'SFO'},
+                headers=admin_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['flight']['destination_airport'] == 'SFO'
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_departure_time(self, client, app, admin_headers):
+        """Test updating departure time."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD004',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            new_departure = datetime(2026, 5, 20, 12, 30)
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'departure_time': new_departure.strftime('%Y-%m-%d %H:%M:%S')},
+                headers=admin_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            # Verify the departure time was updated
+            assert '2026-05-20' in data['flight']['departure_time']
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_arrival_time(self, client, app, admin_headers):
+        """Test updating arrival time."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD005',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            new_arrival = datetime(2026, 5, 20, 17, 30)
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'arrival_time': new_arrival.strftime('%Y-%m-%d %H:%M:%S')},
+                headers=admin_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert '2026-05-20' in data['flight']['arrival_time']
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_multiple_fields(self, client, app, admin_headers):
+        """Test updating multiple fields at once."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD006',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            new_departure = datetime(2026, 5, 20, 12, 30)
+            new_arrival = datetime(2026, 5, 20, 17, 30)
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={
+                    'origin_airport': 'ORD',
+                    'destination_airport': 'SFO',
+                    'base_price': 499.99,
+                    'departure_time': new_departure.strftime('%Y-%m-%d %H:%M:%S'),
+                    'arrival_time': new_arrival.strftime('%Y-%m-%d %H:%M:%S')
+                },
+                headers=admin_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['flight']['origin_airport'] == 'ORD'
+            assert data['flight']['destination_airport'] == 'SFO'
+            assert str(data['flight']['base_price']) == '499.99'
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_as_regular_user(self, client, app, auth_headers):
+        """Test updating a flight as regular user (should fail)."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD007',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'base_price': 399.99},
+                headers=auth_headers
+            )
+
+            assert response.status_code == 403
+            data = response.get_json()
+            assert data['error'] == 'Forbidden'
+            assert 'Admin privileges required' in data['message']
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_nonexistent_flight(self, client, app, admin_headers):
+        """Test updating a flight that doesn't exist."""
+        with app.app_context():
+            import uuid
+            nonexistent_id = uuid.uuid4()
+
+            response = client.put(
+                f'/api/flights/{nonexistent_id}',
+                json={'base_price': 399.99},
+                headers=admin_headers
+            )
+
+            assert response.status_code == 404
+            data = response.get_json()
+            assert data['error'] == 'Not Found'
+
+    def test_update_flight_without_token(self, client, app):
+        """Test updating a flight without authentication."""
+        with app.app_context():
+            import uuid
+            fake_id = uuid.uuid4()
+            response = client.put(
+                f'/api/flights/{fake_id}',
+                json={'base_price': 399.99}
+            )
+
+            assert response.status_code == 401
+            data = response.get_json()
+            assert 'error' in data
+
+    def test_update_flight_with_invalid_token(self, client, app):
+        """Test updating a flight with invalid token."""
+        with app.app_context():
+            import uuid
+            fake_id = uuid.uuid4()
+            response = client.put(
+                f'/api/flights/{fake_id}',
+                json={'base_price': 399.99},
+                headers={'Authorization': 'Bearer invalid_token'}
+            )
+
+            assert response.status_code == 401
+
+    def test_update_flight_no_fields_provided(self, client, app, admin_headers):
+        """Test update with empty request body (no fields to update)."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD008',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={},
+                headers=admin_headers
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert 'error' in data
+            assert 'Bad Request' in data['error']
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_invalid_origin_length(self, client, app, admin_headers):
+        """Test update with origin airport too short."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD009',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'origin_airport': 'JK'},  # Too short
+                headers=admin_headers
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert 'errors' in data
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_same_origin_destination(self, client, app, admin_headers):
+        """Test update with same origin and destination."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD010',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={
+                    'origin_airport': 'JFK',
+                    'destination_airport': 'JFK'  # Same as origin
+                },
+                headers=admin_headers
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert 'errors' in data
+            assert 'destination_airport' in data['errors']
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_arrival_before_departure(self, client, app, admin_headers):
+        """Test update with arrival time before departure time."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD011',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={
+                    'departure_time': '2026-05-20 15:00:00',
+                    'arrival_time': '2026-05-20 10:00:00'  # Before departure
+                },
+                headers=admin_headers
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert 'errors' in data
+            assert 'arrival_time' in data['errors']
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_invalid_date_format(self, client, app, admin_headers):
+        """Test update with invalid date format."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD012',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'departure_time': 'invalid-date'},
+                headers=admin_headers
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert 'errors' in data
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_negative_price(self, client, app, admin_headers):
+        """Test update with negative price."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD013',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'base_price': -99.99},
+                headers=admin_headers
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert 'errors' in data
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_response_structure(self, client, app, admin_headers):
+        """Test that update response has correct structure."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD014',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'base_price': 399.99},
+                headers=admin_headers
+            )
+
+            assert response.status_code == 200
+            data = response.get_json()
+
+            # Check response structure
+            assert 'message' in data
+            assert 'flight' in data
+
+            # Check flight object structure
+            flight = data['flight']
+            assert 'id' in flight
+            assert 'flight_code' in flight
+            assert 'origin_airport' in flight
+            assert 'destination_airport' in flight
+            assert 'departure_time' in flight
+            assert 'arrival_time' in flight
+            assert 'base_price' in flight
+            assert 'status' in flight
+            assert 'created_at' in flight
+            assert 'updated_at' in flight
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_past_time_not_allowed(self, client, app, admin_headers):
+        """Test that updating with past time is not allowed."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD015',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            # Try to update with a past date
+            past_date = datetime(2020, 1, 1, 10, 0)
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'departure_time': past_date.strftime('%Y-%m-%d %H:%M:%S')},
+                headers=admin_headers
+            )
+
+            assert response.status_code == 400
+            data = response.get_json()
+            assert 'errors' in data
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+    def test_update_flight_json_response_type(self, client, app, admin_headers):
+        """Test that update response content type is JSON."""
+        with app.app_context():
+            test_flight = Flight(
+                flight_code='TESTUPD016',
+                origin_airport='JFK',
+                destination_airport='LAX',
+                departure_time=datetime(2026, 4, 15, 10, 0),
+                arrival_time=datetime(2026, 4, 15, 15, 0),
+                base_price=Decimal('299.99'),
+                status=FlightStatus.active
+            )
+            db.session.add(test_flight)
+            db.session.commit()
+            flight_id = test_flight.id
+
+            response = client.put(
+                f'/api/flights/{flight_id}',
+                json={'base_price': 399.99},
+                headers=admin_headers
+            )
+
+            assert response.content_type == 'application/json'
+
+            # Cleanup
+            db.session.delete(Flight.query.filter_by(id=flight_id).first())
+            db.session.commit()
+
+
 class TestFlightRoutesIntegration:
     """Integration tests for flight routes."""
 
@@ -898,4 +1476,294 @@ class TestDeleteFlightEndpoint:
             assert 'message' in data
             assert str(flight_id) in data['message']
             assert 'deleted successfully' in data['message']
+
+
+class TestFlightRoutesExceptionHandlers:
+    """Test broad exception handlers in flight routes."""
+
+    def test_get_airports_unexpected_exception(self, client, app, auth_headers):
+        """Test get_airports handles unexpected exceptions."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.flights.FlightService.get_available_airports') as mock_service:
+                mock_service.side_effect = Exception('Unexpected database error')
+
+                response = client.get('/api/flights/airports', headers=auth_headers)
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'Internal Server Error' in data['error']
+                assert 'message' in data
+
+    def test_search_flights_unexpected_exception(self, client, app, auth_headers):
+        """Test search_flights handles unexpected exceptions."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.flights.FlightService.search_flights') as mock_service:
+                mock_service.side_effect = Exception('Database connection failed')
+
+                response = client.get('/api/flights/search', headers=auth_headers)
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'Internal Server Error' in data['error']
+
+    def test_add_flight_unexpected_exception(self, client, app, admin_headers):
+        """Test add_flight handles unexpected exceptions."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.flights.FlightService.create_flight') as mock_service:
+                mock_service.side_effect = Exception('Database integrity error')
+
+                response = client.post(
+                    '/api/flights/',
+                    json={
+                        'flight_code': 'AA999',
+                        'origin_airport': 'JFK',
+                        'destination_airport': 'LAX',
+                        'departure_time': '2026-12-25 10:30:00',
+                        'arrival_time': '2026-12-25 14:45:00',
+                        'base_price': 299.99
+                    },
+                    headers=admin_headers
+                )
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'Internal Server Error' in data['error']
+
+    def test_delete_flight_unexpected_exception(self, client, app, admin_headers):
+        """Test delete_flight handles unexpected exceptions."""
+        with app.app_context():
+            import uuid
+            flight_id = uuid.uuid4()
+
+            with patch('ticket_management_system.resources.flights.FlightService.delete_flight') as mock_service:
+                mock_service.side_effect = Exception('Database delete failed')
+
+                response = client.delete(f'/api/flights/{flight_id}', headers=admin_headers)
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'Internal Server Error' in data['error']
+
+    def test_update_flight_unexpected_exception(self, client, app, admin_headers):
+        """Test update_flight handles unexpected exceptions."""
+        with app.app_context():
+            import uuid
+            flight_id = uuid.uuid4()
+
+            with patch('ticket_management_system.resources.flights.FlightService.update_flight') as mock_service:
+                mock_service.side_effect = Exception('Database update failed')
+
+                response = client.put(
+                    f'/api/flights/{flight_id}',
+                    json={'base_price': 399.99},
+                    headers=admin_headers
+                )
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'Internal Server Error' in data['error']
+
+    def test_get_airports_exception_response_structure(self, client, app, auth_headers):
+        """Test that exception responses have correct structure."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.flights.FlightService.get_available_airports') as mock_service:
+                mock_service.side_effect = RuntimeError('Critical error')
+
+                response = client.get('/api/flights/airports', headers=auth_headers)
+
+                assert response.status_code == 500
+                data = response.get_json()
+
+                # Verify response structure
+                assert 'error' in data
+                assert 'message' in data
+                assert data['error'] == 'Internal Server Error'
+                assert isinstance(data['message'], str)
+
+    def test_search_flights_exception_response_structure(self, client, app, auth_headers):
+        """Test search_flights exception response structure."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.flights.FlightService.search_flights') as mock_service:
+                mock_service.side_effect = RuntimeError('Critical error')
+
+                response = client.get('/api/flights/search?page=1', headers=auth_headers)
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'message' in data
+
+    def test_add_flight_exception_response_structure(self, client, app, admin_headers):
+        """Test add_flight exception response structure."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.flights.FlightService.create_flight') as mock_service:
+                mock_service.side_effect = RuntimeError('Critical error')
+
+                response = client.post(
+                    '/api/flights/',
+                    json={
+                        'flight_code': 'AA888',
+                        'origin_airport': 'JFK',
+                        'destination_airport': 'LAX',
+                        'departure_time': '2026-12-25 10:30:00',
+                        'arrival_time': '2026-12-25 14:45:00',
+                        'base_price': 299.99
+                    },
+                    headers=admin_headers
+                )
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'message' in data
+
+    def test_delete_flight_exception_response_structure(self, client, app, admin_headers):
+        """Test delete_flight exception response structure."""
+        with app.app_context():
+            import uuid
+            flight_id = uuid.uuid4()
+
+            with patch('ticket_management_system.resources.flights.FlightService.delete_flight') as mock_service:
+                mock_service.side_effect = RuntimeError('Critical error')
+
+                response = client.delete(f'/api/flights/{flight_id}', headers=admin_headers)
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'message' in data
+
+    def test_update_flight_exception_response_structure(self, client, app, admin_headers):
+        """Test update_flight exception response structure."""
+        with app.app_context():
+            import uuid
+            flight_id = uuid.uuid4()
+
+            with patch('ticket_management_system.resources.flights.FlightService.update_flight') as mock_service:
+                mock_service.side_effect = RuntimeError('Critical error')
+
+                response = client.put(
+                    f'/api/flights/{flight_id}',
+                    json={'base_price': 499.99},
+                    headers=admin_headers
+                )
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'message' in data
+
+    def test_get_airports_exception_json_response(self, client, app, auth_headers):
+        """Test that exception responses are JSON."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.flights.FlightService.get_available_airports') as mock_service:
+                mock_service.side_effect = Exception('Error')
+
+                response = client.get('/api/flights/airports', headers=auth_headers)
+
+                assert response.content_type == 'application/json'
+
+    def test_search_flights_exception_json_response(self, client, app, auth_headers):
+        """Test that search exception responses are JSON."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.flights.FlightService.search_flights') as mock_service:
+                mock_service.side_effect = Exception('Error')
+
+                response = client.get('/api/flights/search', headers=auth_headers)
+
+                assert response.content_type == 'application/json'
+
+    def test_add_flight_exception_json_response(self, client, app, admin_headers):
+        """Test that add flight exception responses are JSON."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.flights.FlightService.create_flight') as mock_service:
+                mock_service.side_effect = Exception('Error')
+
+                response = client.post(
+                    '/api/flights/',
+                    json={
+                        'flight_code': 'AA777',
+                        'origin_airport': 'JFK',
+                        'destination_airport': 'LAX',
+                        'departure_time': '2026-12-25 10:30:00',
+                        'arrival_time': '2026-12-25 14:45:00',
+                        'base_price': 299.99
+                    },
+                    headers=admin_headers
+                )
+
+                assert response.content_type == 'application/json'
+
+    def test_delete_flight_exception_json_response(self, client, app, admin_headers):
+        """Test that delete flight exception responses are JSON."""
+        with app.app_context():
+            import uuid
+            flight_id = uuid.uuid4()
+
+            with patch('ticket_management_system.resources.flights.FlightService.delete_flight') as mock_service:
+                mock_service.side_effect = Exception('Error')
+
+                response = client.delete(f'/api/flights/{flight_id}', headers=admin_headers)
+
+                assert response.content_type == 'application/json'
+
+    def test_update_flight_exception_json_response(self, client, app, admin_headers):
+        """Test that update flight exception responses are JSON."""
+        with app.app_context():
+            import uuid
+            flight_id = uuid.uuid4()
+
+            with patch('ticket_management_system.resources.flights.FlightService.update_flight') as mock_service:
+                mock_service.side_effect = Exception('Error')
+
+                response = client.put(
+                    f'/api/flights/{flight_id}',
+                    json={'base_price': 599.99},
+                    headers=admin_headers
+                )
+
+                assert response.content_type == 'application/json'
+
+    def test_multiple_exception_types(self, client, app, auth_headers):
+        """Test handling of different exception types."""
+        with app.app_context():
+            # Test with ValueError
+            with patch('ticket_management_system.resources.flights.FlightService.get_available_airports') as mock_service:
+                mock_service.side_effect = ValueError('Invalid value')
+
+                response = client.get('/api/flights/airports', headers=auth_headers)
+                assert response.status_code == 500
+
+            # Test with KeyError
+            with patch('ticket_management_system.resources.flights.FlightService.get_available_airports') as mock_service:
+                mock_service.side_effect = KeyError('Missing key')
+
+                response = client.get('/api/flights/airports', headers=auth_headers)
+                assert response.status_code == 500
+
+            # Test with TypeError
+            with patch('ticket_management_system.resources.flights.FlightService.get_available_airports') as mock_service:
+                mock_service.side_effect = TypeError('Type error')
+
+                response = client.get('/api/flights/airports', headers=auth_headers)
+                assert response.status_code == 500
+
+    def test_exception_does_not_expose_sensitive_info(self, client, app, auth_headers):
+        """Test that exception responses don't expose sensitive info in production mode."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.flights.FlightService.get_available_airports') as mock_service:
+                mock_service.side_effect = Exception('Secret database password: abc123')
+
+                response = client.get('/api/flights/airports', headers=auth_headers)
+
+                assert response.status_code == 500
+                data = response.get_json()
+                # Verify the sensitive data is handled properly
+                assert 'error' in data
+                assert 'message' in data
 

@@ -5,13 +5,15 @@ Tests create/list/detail/availability workflows.
 
 from datetime import datetime
 from decimal import Decimal
+from unittest.mock import patch
 from urllib.parse import quote
+
+from werkzeug.security import generate_password_hash
 
 from ticket_management_system.extensions import db
 from ticket_management_system.models import Flight, FlightStatus, Roles, User
 from ticket_management_system.resources.booking_service import BookingService
 from ticket_management_system.resources.user_service import UserService
-from werkzeug.security import generate_password_hash
 
 
 def _create_test_flight(code="RT101", status=FlightStatus.active, base_price=Decimal("300.00")):
@@ -1452,4 +1454,526 @@ class TestBookingErrorHandling:
         # Restore original method
         with app.app_context():
             BookingService.get_seat_availability = original_method
+
+
+class TestBookingRoutesExceptionHandlers:
+    """Test broad exception handlers in booking routes."""
+
+    def test_create_booking_unexpected_exception(self, client, app, auth_headers, sample_flights):
+        """Test create_booking handles unexpected exceptions."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.bookings.BookingService.book_tickets') as mock_service:
+                mock_service.side_effect = Exception('Database error during booking creation')
+
+                response = client.post(
+                    '/api/bookings/',
+                    json={
+                        'flight_id': str(sample_flights[0].id),
+                        'passengers': [
+                            {
+                                'passenger_name': 'John Doe',
+                                'passenger_passport_num': 'P12345678',
+                                'seat_num': '12A',
+                                'seat_class': 'economy'
+                            }
+                        ]
+                    },
+                    headers=auth_headers
+                )
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'Internal Server Error' in data['error']
+                assert 'message' in data
+
+    def test_list_bookings_unexpected_exception(self, client, app, auth_headers):
+        """Test list_bookings handles unexpected exceptions."""
+        with app.app_context():
+            with patch('ticket_management_system.resources.bookings.BookingService.get_paginated_bookings') as mock_service:
+                mock_service.side_effect = Exception('Database connection failed')
+
+                response = client.get(
+                    '/api/bookings/?page=1&per_page=10',
+                    headers=auth_headers
+                )
+
+                assert response.status_code == 500
+                data = response.get_json()
+                assert 'error' in data
+                assert 'Internal Server Error' in data['error']
+
+    def test_update_booking_unexpected_exception(self, client, app, auth_headers, test_user, sample_flights):
+        """Test update_booking handles unexpected exceptions."""
+        booking_id = None
+        with app.app_context():
+            from ticket_management_system.models import BookingStatus
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=sample_flights[0].id,
+                passengers=[{
+                    "passenger_name": "Test",
+                    "passenger_passport_num": "P12345",
+                    "seat_num": "1A",
+                    "seat_class": "economy"
+                }],
+                booking_status=BookingStatus.booked
+            )
+            booking_id = booking.id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.update_booking') as mock_service:
+            mock_service.side_effect = Exception('Database update failed')
+
+            response = client.put(
+                f'/api/bookings/{booking_id}',
+                json={'booking_status': 'paid'},
+                headers=auth_headers
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            assert 'error' in data
+            assert 'Internal Server Error' in data['error']
+
+    def test_cancel_booking_unexpected_exception(self, client, app, auth_headers, test_user, sample_flights):
+        """Test cancel_booking handles unexpected exceptions."""
+        booking_id = None
+        with app.app_context():
+            from ticket_management_system.models import BookingStatus
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=sample_flights[0].id,
+                passengers=[{
+                    "passenger_name": "Test",
+                    "passenger_passport_num": "P12345",
+                    "seat_num": "2A",
+                    "seat_class": "economy"
+                }],
+                booking_status=BookingStatus.booked
+            )
+            booking_id = booking.id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.cancel_booking') as mock_service:
+            mock_service.side_effect = Exception('Database delete failed')
+
+            response = client.delete(
+                f'/api/bookings/{booking_id}',
+                headers=auth_headers
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            assert 'error' in data
+            assert 'Internal Server Error' in data['error']
+
+    def test_get_booking_unexpected_exception(self, client, app, auth_headers, test_user, sample_flights):
+        """Test get_booking handles unexpected exceptions."""
+        booking_id = None
+        with app.app_context():
+            from ticket_management_system.models import BookingStatus
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=sample_flights[0].id,
+                passengers=[{
+                    "passenger_name": "Test",
+                    "passenger_passport_num": "P12345",
+                    "seat_num": "3A",
+                    "seat_class": "economy"
+                }],
+                booking_status=BookingStatus.booked
+            )
+            booking_id = booking.id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.get_booking_by_id') as mock_service:
+            mock_service.side_effect = Exception('Database query failed')
+
+            response = client.get(
+                f'/api/bookings/{booking_id}',
+                headers=auth_headers
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            assert 'error' in data
+            assert 'Internal Server Error' in data['error']
+
+    def test_get_seat_availability_unexpected_exception(self, client, app, auth_headers, sample_flights):
+        """Test get_seat_availability handles unexpected exceptions."""
+        flight_id = None
+        with app.app_context():
+            flight_id = sample_flights[0].id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.get_seat_availability') as mock_service:
+            mock_service.side_effect = Exception('Database query error')
+
+            response = client.get(
+                f'/api/bookings/availability?flight_id={flight_id}&seat_num=12A',
+                headers=auth_headers
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            assert 'error' in data
+            assert 'Internal Server Error' in data['error']
+
+    def test_create_booking_exception_response_structure(self, client, app, auth_headers, sample_flights):
+        """Test create_booking exception response structure."""
+        flight_id = None
+        with app.app_context():
+            flight_id = sample_flights[0].id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.book_tickets') as mock_service:
+            mock_service.side_effect = RuntimeError('Critical error')
+
+            response = client.post(
+                '/api/bookings/',
+                json={
+                    'flight_id': str(flight_id),
+                    'passengers': [
+                        {
+                            'passenger_name': 'Jane Smith',
+                            'passenger_passport_num': 'P98765432',
+                            'seat_num': '14B',
+                            'seat_class': 'business'
+                        }
+                    ]
+                },
+                headers=auth_headers
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            assert 'error' in data
+            assert 'message' in data
+            assert data['error'] == 'Internal Server Error'
+            assert isinstance(data['message'], str)
+
+    def test_list_bookings_exception_response_structure(self, client, app, auth_headers):
+        """Test list_bookings exception response structure."""
+        with patch('ticket_management_system.resources.bookings.BookingService.get_paginated_bookings') as mock_service:
+            mock_service.side_effect = RuntimeError('Critical error')
+
+            response = client.get(
+                '/api/bookings/?page=1',
+                headers=auth_headers
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            assert 'error' in data
+            assert 'message' in data
+
+    def test_update_booking_exception_response_structure(self, client, app, auth_headers, test_user, sample_flights):
+        """Test update_booking exception response structure."""
+        booking_id = None
+        with app.app_context():
+            from ticket_management_system.models import BookingStatus
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=sample_flights[0].id,
+                passengers=[{
+                    "passenger_name": "Test",
+                    "passenger_passport_num": "P12345",
+                    "seat_num": "4A",
+                    "seat_class": "economy"
+                }],
+                booking_status=BookingStatus.booked
+            )
+            booking_id = booking.id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.update_booking') as mock_service:
+            mock_service.side_effect = RuntimeError('Critical error')
+
+            response = client.put(
+                f'/api/bookings/{booking_id}',
+                json={'booking_status': 'paid'},
+                headers=auth_headers
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            assert 'error' in data
+            assert 'message' in data
+
+    def test_cancel_booking_exception_response_structure(self, client, app, auth_headers, test_user, sample_flights):
+        """Test cancel_booking exception response structure."""
+        booking_id = None
+        with app.app_context():
+            from ticket_management_system.models import BookingStatus
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=sample_flights[0].id,
+                passengers=[{
+                    "passenger_name": "Test",
+                    "passenger_passport_num": "P12345",
+                    "seat_num": "5A",
+                    "seat_class": "economy"
+                }],
+                booking_status=BookingStatus.booked
+            )
+            booking_id = booking.id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.cancel_booking') as mock_service:
+            mock_service.side_effect = RuntimeError('Critical error')
+
+            response = client.delete(
+                f'/api/bookings/{booking_id}',
+                headers=auth_headers
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            assert 'error' in data
+            assert 'message' in data
+
+    def test_get_booking_exception_response_structure(self, client, app, auth_headers, test_user, sample_flights):
+        """Test get_booking exception response structure."""
+        booking_id = None
+        with app.app_context():
+            from ticket_management_system.models import BookingStatus
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=sample_flights[0].id,
+                passengers=[{
+                    "passenger_name": "Test",
+                    "passenger_passport_num": "P12345",
+                    "seat_num": "6A",
+                    "seat_class": "economy"
+                }],
+                booking_status=BookingStatus.booked
+            )
+            booking_id = booking.id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.get_booking_by_id') as mock_service:
+            mock_service.side_effect = RuntimeError('Critical error')
+
+            response = client.get(
+                f'/api/bookings/{booking_id}',
+                headers=auth_headers
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            assert 'error' in data
+            assert 'message' in data
+
+    def test_create_booking_exception_json_response(self, client, app, auth_headers, sample_flights):
+        """Test create_booking exception response is JSON."""
+        flight_id = None
+        with app.app_context():
+            flight_id = sample_flights[0].id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.book_tickets') as mock_service:
+            mock_service.side_effect = Exception('Error')
+
+            response = client.post(
+                '/api/bookings/',
+                json={
+                    'flight_id': str(flight_id),
+                    'passengers': [
+                        {
+                            'passenger_name': 'Test User',
+                            'passenger_passport_num': 'P11111111',
+                            'seat_num': '10A',
+                            'seat_class': 'economy'
+                        }
+                    ]
+                },
+                headers=auth_headers
+            )
+
+            assert response.content_type == 'application/json'
+
+    def test_list_bookings_exception_json_response(self, client, app, auth_headers):
+        """Test list_bookings exception response is JSON."""
+        with patch('ticket_management_system.resources.bookings.BookingService.get_paginated_bookings') as mock_service:
+            mock_service.side_effect = Exception('Error')
+
+            response = client.get(
+                '/api/bookings/',
+                headers=auth_headers
+            )
+
+            assert response.content_type == 'application/json'
+
+    def test_update_booking_exception_json_response(self, client, app, auth_headers, test_user, sample_flights):
+        """Test update_booking exception response is JSON."""
+        booking_id = None
+        with app.app_context():
+            from ticket_management_system.models import BookingStatus
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=sample_flights[0].id,
+                passengers=[{
+                    "passenger_name": "Test",
+                    "passenger_passport_num": "P12345",
+                    "seat_num": "7A",
+                    "seat_class": "economy"
+                }],
+                booking_status=BookingStatus.booked
+            )
+            booking_id = booking.id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.update_booking') as mock_service:
+            mock_service.side_effect = Exception('Error')
+
+            response = client.put(
+                f'/api/bookings/{booking_id}',
+                json={'booking_status': 'paid'},
+                headers=auth_headers
+            )
+
+            assert response.content_type == 'application/json'
+
+    def test_cancel_booking_exception_json_response(self, client, app, auth_headers, test_user, sample_flights):
+        """Test cancel_booking exception response is JSON."""
+        booking_id = None
+        with app.app_context():
+            from ticket_management_system.models import BookingStatus
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=sample_flights[0].id,
+                passengers=[{
+                    "passenger_name": "Test",
+                    "passenger_passport_num": "P12345",
+                    "seat_num": "8A",
+                    "seat_class": "economy"
+                }],
+                booking_status=BookingStatus.booked
+            )
+            booking_id = booking.id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.cancel_booking') as mock_service:
+            mock_service.side_effect = Exception('Error')
+
+            response = client.delete(
+                f'/api/bookings/{booking_id}',
+                headers=auth_headers
+            )
+
+            assert response.content_type == 'application/json'
+
+    def test_get_booking_exception_json_response(self, client, app, auth_headers, test_user, sample_flights):
+        """Test get_booking exception response is JSON."""
+        booking_id = None
+        with app.app_context():
+            from ticket_management_system.models import BookingStatus
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=sample_flights[0].id,
+                passengers=[{
+                    "passenger_name": "Test",
+                    "passenger_passport_num": "P12345",
+                    "seat_num": "9A",
+                    "seat_class": "economy"
+                }],
+                booking_status=BookingStatus.booked
+            )
+            booking_id = booking.id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.get_booking_by_id') as mock_service:
+            mock_service.side_effect = Exception('Error')
+
+            response = client.get(
+                f'/api/bookings/{booking_id}',
+                headers=auth_headers
+            )
+
+            assert response.content_type == 'application/json'
+
+    def test_get_seat_availability_exception_json_response(self, client, app, auth_headers, sample_flights):
+        """Test get_seat_availability exception response is JSON."""
+        flight_id = None
+        with app.app_context():
+            flight_id = sample_flights[0].id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.get_seat_availability') as mock_service:
+            mock_service.side_effect = Exception('Error')
+
+            response = client.get(
+                f'/api/bookings/availability?flight_id={flight_id}&seat_num=12A',
+                headers=auth_headers
+            )
+
+            assert response.content_type == 'application/json'
+
+    def test_multiple_exception_types_in_bookings(self, client, app, auth_headers, sample_flights):
+        """Test handling of different exception types in bookings."""
+        flight_id = None
+        with app.app_context():
+            flight_id = sample_flights[0].id
+
+        # Test with KeyError (gets caught as broad exception, not ValueError)
+        with patch('ticket_management_system.resources.bookings.BookingService.book_tickets') as mock_service:
+            mock_service.side_effect = KeyError('Missing key')
+
+            response = client.post(
+                '/api/bookings/',
+                json={
+                    'flight_id': str(flight_id),
+                    'passengers': [
+                        {
+                            'passenger_name': 'Test2',
+                            'passenger_passport_num': 'P11111111',
+                            'seat_num': '2A',
+                            'seat_class': 'economy'
+                        }
+                    ]
+                },
+                headers=auth_headers
+            )
+            assert response.status_code == 500
+
+        # Test with TypeError
+        with patch('ticket_management_system.resources.bookings.BookingService.book_tickets') as mock_service:
+            mock_service.side_effect = TypeError('Type error')
+
+            response = client.post(
+                '/api/bookings/',
+                json={
+                    'flight_id': str(flight_id),
+                    'passengers': [
+                        {
+                            'passenger_name': 'Test3',
+                            'passenger_passport_num': 'P22222222',
+                            'seat_num': '3A',
+                            'seat_class': 'economy'
+                        }
+                    ]
+                },
+                headers=auth_headers
+            )
+            assert response.status_code == 500
+
+    def test_booking_exception_does_not_expose_sensitive_info(self, client, app, auth_headers, test_user, sample_flights):
+        """Test that exception responses don't expose sensitive information."""
+        booking_id = None
+        with app.app_context():
+            from ticket_management_system.models import BookingStatus
+            booking, _ = BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=sample_flights[0].id,
+                passengers=[{
+                    "passenger_name": "Test",
+                    "passenger_passport_num": "P12345",
+                    "seat_num": "11A",
+                    "seat_class": "economy"
+                }],
+                booking_status=BookingStatus.booked
+            )
+            booking_id = booking.id
+
+        with patch('ticket_management_system.resources.bookings.BookingService.get_booking_by_id') as mock_service:
+            mock_service.side_effect = Exception('Secret database password: abc123')
+
+            response = client.get(
+                f'/api/bookings/{booking_id}',
+                headers=auth_headers
+            )
+
+            assert response.status_code == 500
+            data = response.get_json()
+            # Verify the error is handled properly
+            assert 'error' in data
+            assert 'message' in data
 
