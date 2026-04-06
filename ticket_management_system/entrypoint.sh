@@ -17,16 +17,23 @@ while ! nc -z postgres 5432; do
 done
 echo "PostgreSQL is ready!"
 
+# Navigate to the app directory
+cd /app/ticket_management_system
+
 # Check if migrations directory exists
+<<<<<<< HEAD
+if [ ! -d "migrations" ]; then
+=======
 MIGRATIONS_DIR="/app/ticket_management_system/migrations"
 if [ ! -d "$MIGRATIONS_DIR" ]; then
+>>>>>>> 8738e07 (fix)
     echo "Initializing migrations..."
-    cd /app && PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db init
+    PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db init
 fi
 
 # Run migrations
 echo "Running database migrations..."
-cd /app && PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db upgrade
+PYTHONPATH=/app flask --app "$FLASK_APP_TARGET" db upgrade
 
 # Start application with Gunicorn configuration
 echo "Starting Gunicorn..."
