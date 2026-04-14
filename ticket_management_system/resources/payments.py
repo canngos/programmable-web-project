@@ -4,7 +4,6 @@ Provides endpoint for booking payment and confirmation.
 """
 
 from flask import Blueprint, request, jsonify
-from flasgger import swag_from
 import uuid
 from ticket_management_system.extensions import db
 from ticket_management_system.models import Booking, BookingStatus
@@ -14,7 +13,6 @@ payment_bp = Blueprint('payments', __name__, url_prefix='/api/payments')
 
 @payment_bp.route('/', methods=['POST'])
 @token_required
-@swag_from("../swagger_specs/payment_process.yml")
 def process_payment(current_user):  # pylint: disable=too-many-return-statements
     """
     Process payment for a booking and confirm it.

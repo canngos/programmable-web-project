@@ -11,6 +11,7 @@ from ticket_management_system.exceptions import (
     InvalidRoleError,
     SeatUnavailableError,
     BookingNotFoundError,
+    BookingConflictError,
     FieldTooLongError,
     FieldTooShortError,
     FieldEmptyError
@@ -127,5 +128,11 @@ class TestBookingExceptions:
         error = BookingNotFoundError(booking_id)
         assert error.booking_id == booking_id
         assert error.message == f'Booking with ID {booking_id} not found'
+
+    def test_booking_conflict_error(self):
+        """Test BookingConflictError initialization."""
+        error = BookingConflictError("Booking is already cancelled")
+        assert error.message == "Booking is already cancelled"
+        assert str(error) == "Booking is already cancelled"
 
 

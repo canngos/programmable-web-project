@@ -119,3 +119,10 @@ class BookingNotFoundError(Exception):
         self.message = f'Booking with ID {booking_id} not found'
         super().__init__(self.message)
 
+
+class BookingConflictError(Exception):
+    """Raised when booking state conflicts with the requested operation."""
+    def __init__(self, message):
+        self.message = message
+        super().__init__(message)
+

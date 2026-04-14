@@ -9,7 +9,11 @@ import uuid
 
 import pytest
 
-from ticket_management_system.exceptions import FlightNotFoundError, SeatUnavailableError
+from ticket_management_system.exceptions import (
+    BookingConflictError,
+    FlightNotFoundError,
+    SeatUnavailableError,
+)
 from ticket_management_system.extensions import db
 from ticket_management_system.models import BookingStatus, Flight, FlightStatus, Roles, SeatClass, User
 from ticket_management_system.resources.booking_service import BookingService
@@ -177,7 +181,7 @@ class TestBookingServiceBookTickets:
             db.session.add(flight)
             db.session.commit()
 
-            with pytest.raises(ValueError):
+            with pytest.raises(BookingConflictError):
                 BookingService.book_tickets(
                     user_id=booking_user.id,
                     flight_id=flight.id,
@@ -402,7 +406,7 @@ class TestBookingServiceUpdateBooking:
                 booking_status=BookingStatus.cancelled
             )
 
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(BookingConflictError) as exc_info:
                 BookingService.update_booking(
                     booking_id=booking.id,
                     booking_status="paid"
@@ -435,7 +439,7 @@ class TestBookingServiceUpdateBooking:
                 booking_status=BookingStatus.refunded
             )
 
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(BookingConflictError) as exc_info:
                 BookingService.update_booking(
                     booking_id=booking.id,
                     booking_status="paid"
@@ -642,7 +646,7 @@ class TestBookingServiceCancelBooking:
                 booking_status=BookingStatus.cancelled
             )
 
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(BookingConflictError) as exc_info:
                 BookingService.cancel_booking(booking.id)
 
             assert "already cancelled" in str(exc_info.value).lower()
@@ -671,7 +675,7 @@ class TestBookingServiceCancelBooking:
                 booking_status=BookingStatus.refunded
             )
 
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(BookingConflictError) as exc_info:
                 BookingService.cancel_booking(booking.id)
 
             assert "cannot cancel" in str(exc_info.value).lower()

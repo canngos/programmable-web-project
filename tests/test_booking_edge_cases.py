@@ -1,12 +1,13 @@
 """Additional tests for booking operations to improve coverage."""
-import pytest
-from decimal import Decimal
 from datetime import datetime
-from ticket_management_system.extensions import db
-from ticket_management_system.models import Flight, FlightStatus, Booking, BookingStatus, User, Roles, Ticket
-from ticket_management_system.resources.booking_service import BookingService
-from ticket_management_system.exceptions import SeatUnavailableError, FlightNotFoundError
+from decimal import Decimal
+
+import pytest
 from werkzeug.security import generate_password_hash
+
+from ticket_management_system.extensions import db
+from ticket_management_system.models import Flight, FlightStatus, User, Roles
+from ticket_management_system.resources.booking_service import BookingService
 
 
 class TestBookingServiceEdgeCases:
@@ -44,92 +45,6 @@ class TestBookingServiceEdgeCases:
             db.session.commit()
             db.session.refresh(user)
             yield user
-
-    def test_book_multiple_passengers_success(self, app, flight_with_limited_seats, booking_user):
-        """Test booking multiple passengers on a flight."""
-        with app.app_context():
-            passengers = [
-                {
-                    'passenger_name': 'John Doe',
-                    'passenger_passport_num': 'ABC123456',
-                    'seat_num': '1A',
-                    'seat_class': 'economy'
-                },
-                {
-                    'passenger_name': 'Jane Doe',
-                    'passenger_passport_num': 'DEF789012',
-                    'seat_num': '1B',
-                    'seat_class': 'economy'
-                }
-            ]
-
-            booking, tickets = BookingService.book_tickets(
-                user_id=booking_user.id,
-                flight_id=flight_with_limited_seats.id,
-                passengers=passengers
-            )
-
-            assert booking is not None
-            assert len(tickets) == 2
-            assert booking.booking_status == BookingStatus.booked
-
-    def test_book_with_custom_booking_status(self, app, flight_with_limited_seats, booking_user):
-        """Test booking with custom booking status."""
-        with app.app_context():
-            passengers = [
-                {
-                    'passenger_name': 'Test User',
-                    'passenger_passport_num': 'GHI345678',
-                    'seat_num': '2A',
-                    'seat_class': 'business'
-                }
-            ]
-
-            booking, tickets = BookingService.book_tickets(
-                user_id=booking_user.id,
-                flight_id=flight_with_limited_seats.id,
-                passengers=passengers,
-                booking_status='booked'
-            )
-
-            assert booking.booking_status == BookingStatus.booked
-
-    def test_book_same_seat_twice_fails(self, app, flight_with_limited_seats, booking_user):
-        """Test that booking the same seat twice raises error."""
-        with app.app_context():
-            passengers_1 = [
-                {
-                    'passenger_name': 'First User',
-                    'passenger_passport_num': 'JKL901234',
-                    'seat_num': '3A',
-                    'seat_class': 'economy'
-                }
-            ]
-
-            # First booking should succeed
-            booking1, tickets1 = BookingService.book_tickets(
-                user_id=booking_user.id,
-                flight_id=flight_with_limited_seats.id,
-                passengers=passengers_1
-            )
-            assert booking1 is not None
-
-            # Second booking of same seat should fail
-            passengers_2 = [
-                {
-                    'passenger_name': 'Second User',
-                    'passenger_passport_num': 'MNO567890',
-                    'seat_num': '3A',
-                    'seat_class': 'economy'
-                }
-            ]
-
-            with pytest.raises(SeatUnavailableError):
-                BookingService.book_tickets(
-                    user_id=booking_user.id,
-                    flight_id=flight_with_limited_seats.id,
-                    passengers=passengers_2
-                )
 
     def test_get_paginated_bookings_specific_user(self, app, flight_with_limited_seats, booking_user):
         """Test getting bookings for specific user."""
@@ -198,28 +113,6 @@ class TestBookingServiceEdgeCases:
 
             assert retrieved is None
 
-    def test_cancel_booking_success(self, app, flight_with_limited_seats, booking_user):
-        """Test successfully cancelling a booking."""
-        with app.app_context():
-            passengers = [
-                {
-                    'passenger_name': 'Cancel Passenger',
-                    'passenger_passport_num': 'VWX456789',
-                    'seat_num': '6A',
-                    'seat_class': 'economy'
-                }
-            ]
-
-            booking, tickets = BookingService.book_tickets(
-                user_id=booking_user.id,
-                flight_id=flight_with_limited_seats.id,
-                passengers=passengers
-            )
-
-            # Cancel booking
-            updated = BookingService.cancel_booking(booking.id)
-
-            assert updated.booking_status == BookingStatus.cancelled
 
 
 

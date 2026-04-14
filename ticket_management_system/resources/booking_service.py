@@ -6,7 +6,8 @@ from ticket_management_system.models import Booking, BookingStatus, Flight, Flig
 from ticket_management_system.exceptions import (
     FlightNotFoundError,
     SeatUnavailableError,
-    BookingNotFoundError
+    BookingNotFoundError,
+    BookingConflictError,
 )
 
 
@@ -87,7 +88,7 @@ class BookingService:
             raise FlightNotFoundError(flight_id)
 
         if flight.status not in BookingService.BOOKABLE_STATUSES:
-            raise ValueError(
+            raise BookingConflictError(
                 f"Flight {flight.flight_code} is not bookable with status '{flight.status.name}'"
             )
 
@@ -239,7 +240,9 @@ class BookingService:
 
         # Don't allow updating cancelled or refunded bookings
         if booking.booking_status in (BookingStatus.cancelled, BookingStatus.refunded):
-            raise ValueError(f"Cannot update booking with status '{booking.booking_status.name}'")
+            raise BookingConflictError(
+                f"Cannot update booking with status '{booking.booking_status.name}'"
+            )
 
         normalized_status = BookingService._parse_booking_status(booking_status)
         booking.booking_status = normalized_status
@@ -259,9 +262,9 @@ class BookingService:
 
         # Check if already cancelled or refunded
         if booking.booking_status == BookingStatus.cancelled:
-            raise ValueError("Booking is already cancelled")
+            raise BookingConflictError("Booking is already cancelled")
         if booking.booking_status == BookingStatus.refunded:
-            raise ValueError("Cannot cancel a refunded booking")
+            raise BookingConflictError("Cannot cancel a refunded booking")
 
         booking.booking_status = BookingStatus.cancelled
 

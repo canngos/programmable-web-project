@@ -5,12 +5,27 @@ from marshmallow import Schema, fields, ValidationError, validates_schema, valid
 
 class FlightSearchSchema(Schema):
     """Schema for flight search validation."""
+    status = fields.Str(
+        required=False,
+        allow_none=True,
+        validate=validate.OneOf(["all", "active", "inactive", "started", "en_route", "landed", "cancelled", "delayed"])
+    )
     origin_airport = fields.Str(required=False, allow_none=True)
     destination_airport = fields.Str(required=False, allow_none=True)
     departure_date = fields.Date(required=False, allow_none=True, format='%Y-%m-%d')
     arrival_date = fields.Date(required=False, allow_none=True, format='%Y-%m-%d')
     page = fields.Int(required=False, load_default=1, validate=validate.Range(min=1))
     per_page = fields.Int(required=False, load_default=10, validate=validate.Range(min=1, max=100))
+    sort_by = fields.Str(
+        required=False,
+        load_default="departure_time",
+        validate=validate.OneOf(["departure_time", "arrival_time", "base_price"]),
+    )
+    sort_order = fields.Str(
+        required=False,
+        load_default="asc",
+        validate=validate.OneOf(["asc", "desc"]),
+    )
 
     @validates_schema
     def validate_dates(self, data, **_kwargs):
@@ -63,6 +78,10 @@ class UpdateFlightSchema(Schema):
     departure_time = fields.DateTime(required=False, format='%Y-%m-%d %H:%M:%S')
     arrival_time = fields.DateTime(required=False, format='%Y-%m-%d %H:%M:%S')
     base_price = fields.Decimal(required=False, places=2, validate=validate.Range(min=0))
+    status = fields.Str(
+        required=False,
+        validate=validate.OneOf(["active", "inactive", "started", "en_route", "landed", "cancelled", "delayed"])
+    )
 
     @validates_schema
     def validate_flight_data(self, data, **_kwargs):

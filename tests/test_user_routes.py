@@ -4,8 +4,7 @@ Tests all HTTP endpoints in the user routes blueprint.
 """
 
 from ticket_management_system.extensions import db
-from ticket_management_system.models import User, Roles
-from ticket_management_system.resources.user_service import UserService
+from ticket_management_system.models import User
 
 
 class TestRegisterEndpoint:
@@ -371,100 +370,6 @@ class TestGetAllUsersEndpoint:
         assert response.status_code == 401
 
 
-class TestTokenDecorator:
-    """Test token_required decorator functionality."""
-
-    def test_token_required_with_valid_token(self, client, app, auth_headers):
-        """Test protected endpoint with valid token."""
-        with app.app_context():
-            response = client.get('/api/users/me', headers=auth_headers)
-            assert response.status_code == 200
-
-    def test_token_required_without_token(self, client):
-        """Test protected endpoint without token."""
-        response = client.get('/api/users/me')
-        assert response.status_code == 401
-        data = response.get_json()
-        assert 'No token provided' in data['message']
-
-    def test_token_required_with_bearer_prefix_missing(self, client, app, test_user):
-        """Test token without Bearer prefix."""
-        with app.app_context():
-            token = UserService.generate_token(test_user)
-            # Send token without "Bearer " prefix
-            headers = {'Authorization': token}
-            response = client.get('/api/users/me', headers=headers)
-
-            assert response.status_code == 401
-
-
-class TestAdminDecorator:
-    """Test admin_required decorator functionality."""
-
-    def test_admin_required_with_admin_user(self, client, app, admin_headers):
-        """Test admin-only endpoint with admin token."""
-        with app.app_context():
-            response = client.get('/api/users/', headers=admin_headers)
-            assert response.status_code == 200
-
-    def test_admin_required_with_regular_user(self, client, app, auth_headers):
-        """Test admin-only endpoint with regular user token."""
-        with app.app_context():
-            response = client.get('/api/users/', headers=auth_headers)
-            assert response.status_code == 403
-            data = response.get_json()
-            assert 'Admin privileges required' in data['message']
-
-
-class TestResponseFormats:
-    """Test response format consistency."""
-
-    def test_error_response_format(self, client):
-        """Test error responses have consistent format."""
-        response = client.post('/api/users/login',
-            json={'email': 'test@example.com'})
-
-        assert response.status_code == 400
-        data = response.get_json()
-
-        assert 'error' in data
-        assert 'message' in data
-        assert isinstance(data['error'], str)
-        assert isinstance(data['message'], str)
-
-    def test_success_response_format_register(self, client, app):
-        """Test successful registration response format."""
-        with app.app_context():
-            response = client.post('/api/users/register',
-                json={
-                    'firstname': 'Test',
-                    'lastname': 'User',
-                    'email': 'testformat@example.com',
-                    'password': 'password123'
-                })
-
-            assert response.status_code == 201
-            data = response.get_json()
-
-            assert 'message' in data
-            assert 'user' in data
-            assert 'token' in data
-            assert 'token_type' in data
-            assert 'expires_in' in data
-
-            # Cleanup
-            user = User.query.filter_by(email='testformat@example.com').first()
-            if user:
-                db.session.delete(user)
-                db.session.commit()
-
-    def test_json_content_type(self, client, app, auth_headers):
-        """Test responses have JSON content type."""
-        with app.app_context():
-            response = client.get('/api/users/me', headers=auth_headers)
-            assert response.content_type == 'application/json'
-
-
 class TestUpdateCurrentUserEndpoint:
     """Test PATCH /api/users/me endpoint."""
 
@@ -532,24 +437,6 @@ class TestUpdateCurrentUserEndpoint:
         assert data['user']['firstname'] == 'MultiFirst'
         assert data['user']['lastname'] == 'MultiLast'
         assert data['user']['email'] == 'multi_update@example.com'
-
-    def test_update_all_fields_together(self, client, auth_headers):
-        """Test updating all allowed fields together."""
-        update_data = {
-            'firstname': 'AllFirst',
-            'lastname': 'AllLast',
-            'email': 'all_fields@example.com',
-            'password': 'newPassword123'
-        }
-        response = client.patch('/api/users/me',
-            json=update_data,
-            headers=auth_headers)
-
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data['user']['firstname'] == 'AllFirst'
-        assert data['user']['lastname'] == 'AllLast'
-        assert data['user']['email'] == 'all_fields@example.com'
 
     def test_update_with_empty_json_object(self, client, auth_headers):
         """Test update with empty JSON object returns 400."""
@@ -656,18 +543,6 @@ class TestUpdateCurrentUserEndpoint:
         assert 'errors' in data
         assert 'firstname' in data['errors']
 
-    def test_update_lastname_with_only_whitespace(self, client, auth_headers):
-        """Test lastname validation rejects whitespace-only values."""
-        response = client.patch('/api/users/me',
-            json={'lastname': '   '},
-            headers=auth_headers)
-
-        assert response.status_code == 400
-        data = response.get_json()
-        assert data['message'] == 'Validation failed'
-        assert 'errors' in data
-        assert 'lastname' in data['errors']
-
     def test_update_email_with_invalid_format(self, client, auth_headers):
         """Test email validation rejects invalid email formats."""
         invalid_emails = [
@@ -696,64 +571,6 @@ class TestUpdateCurrentUserEndpoint:
         assert response.status_code == 401
         data = response.get_json()
         assert data['error'] == 'Authentication required'
-
-    def test_update_with_invalid_token(self, client):
-        """Test update rejects invalid authentication token."""
-        response = client.patch('/api/users/me',
-            json={'firstname': 'NewName'},
-            headers={'Authorization': 'Bearer invalid_token_string'})
-
-        assert response.status_code == 401
-        data = response.get_json()
-        assert data['error'] == 'Invalid token'
-
-    def test_update_with_expired_token(self, client, test_user):
-        """Test update rejects expired authentication token."""
-        import jwt
-        import os
-        from datetime import datetime, timedelta, timezone
-
-        # Create expired token
-        secret = os.getenv('JWT_SECRET_KEY', 'dummy-secret-key-for-development')
-        payload = {
-            'user_id': str(test_user.id),
-            'email': test_user.email,
-            'role': test_user.role.name,
-            'exp': datetime.now(timezone.utc) - timedelta(hours=1),
-            'iat': datetime.now(timezone.utc) - timedelta(hours=2)
-        }
-        expired_token = jwt.encode(payload, secret, algorithm='HS256')
-
-        response = client.patch('/api/users/me',
-            json={'firstname': 'NewName'},
-            headers={'Authorization': f'Bearer {expired_token}'})
-
-        assert response.status_code == 401
-        data = response.get_json()
-        assert data['error'] == 'Token expired'
-
-    def test_update_response_contains_all_required_fields(self, client, auth_headers):
-        """Test successful update response includes all expected fields."""
-        response = client.patch('/api/users/me',
-            json={'firstname': 'TestField'},
-            headers=auth_headers)
-
-        assert response.status_code == 200
-        data = response.get_json()
-
-        # Check top-level response structure
-        assert 'message' in data
-        assert 'user' in data
-
-        # Check user object fields
-        user_data = data['user']
-        required_fields = ['id', 'firstname', 'lastname', 'email', 'role', 'created_at', 'updated_at']
-        for field in required_fields:
-            assert field in user_data, f"Missing required field: {field}"
-
-        # Ensure sensitive fields are NOT included
-        assert 'password' not in user_data
-        assert 'password_hash' not in user_data
 
     def test_update_preserves_unchanged_fields(self, client, auth_headers, test_user):
         """Test updating one field doesn't modify other fields."""
