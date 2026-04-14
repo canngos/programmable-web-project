@@ -1,7 +1,6 @@
 """User authentication and management API endpoints."""
 from functools import wraps
 from flask import Blueprint, request, jsonify
-from flasgger import swag_from
 from marshmallow import ValidationError
 from ticket_management_system.models import Roles
 from ticket_management_system.utils import handle_validation_error, handle_general_error, handle_conflict_error
@@ -79,7 +78,6 @@ def admin_required(f):
 
 
 @user_bp.route('/register', methods=['POST'])
-@swag_from('../swagger_specs/user_register.yml')
 def register():  # pylint: disable=too-many-return-statements
     """Register a new user."""
     try:
@@ -138,7 +136,6 @@ def register():  # pylint: disable=too-many-return-statements
 
 
 @user_bp.route('/login', methods=['POST'])
-@swag_from('../swagger_specs/user_login.yml')
 def login():
     """Login user and return JWT token."""
     try:
@@ -177,7 +174,6 @@ def login():
 
 @user_bp.route('/me', methods=['GET'])
 @token_required
-@swag_from('../swagger_specs/user_me.yml')
 def get_current_user(current_user):
     """Get current user profile."""
     response = UserService.format_user_detail(current_user)
@@ -186,7 +182,6 @@ def get_current_user(current_user):
 
 @user_bp.route('/me', methods=['PATCH'])
 @token_required
-@swag_from('../swagger_specs/user_update_me.yml')
 def update_current_user(current_user):  # pylint: disable=too-many-return-statements
     """Update current user profile."""
     try:
@@ -243,7 +238,6 @@ def update_current_user(current_user):  # pylint: disable=too-many-return-statem
 @user_bp.route('/', methods=['GET'])
 @token_required
 @admin_required
-@swag_from('../swagger_specs/user_list.yml')
 def get_all_users(_current_user):
     """Get paginated list of all users (admin only)."""
     # Get pagination parameters from query string

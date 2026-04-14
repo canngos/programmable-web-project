@@ -295,7 +295,7 @@ class TestPaymentPermissionDenied:
 
         # User2 tries to pay for user1's booking
         with app.app_context():
-            user2 = User.query.get(user2_id)
+            user2 = db.session.get(User, user2_id)
             user2_token = UserService.generate_token(user2)
             headers = {'Authorization': f'Bearer {user2_token}'}
 

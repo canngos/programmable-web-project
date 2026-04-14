@@ -1,6 +1,5 @@
 """Booking management API endpoints."""
 from flask import Blueprint, jsonify, request
-from flasgger import swag_from
 from marshmallow import ValidationError
 
 from ticket_management_system.models import Roles
@@ -15,7 +14,8 @@ from ticket_management_system.resources.booking_service import BookingService
 from ticket_management_system.exceptions import (
     FlightNotFoundError,
     SeatUnavailableError,
-    BookingNotFoundError
+    BookingNotFoundError,
+    BookingConflictError,
 )
 
 booking_bp = Blueprint("bookings", __name__, url_prefix="/api/bookings")
@@ -23,7 +23,6 @@ booking_bp = Blueprint("bookings", __name__, url_prefix="/api/bookings")
 
 @booking_bp.route("/", methods=["POST"])
 @token_required
-@swag_from("../swagger_specs/booking_create.yml")
 def create_booking(current_user):
     """Create a new booking for a flight."""
     try:
@@ -57,6 +56,11 @@ def create_booking(current_user):
             "error": "Conflict",
             "message": err.message
         }), 409
+    except BookingConflictError as err:
+        return jsonify({
+            "error": "Conflict",
+            "message": err.message
+        }), 409
     except ValueError as err:
         return jsonify({
             "error": "Bad Request",
@@ -73,7 +77,6 @@ def create_booking(current_user):
 
 @booking_bp.route("/", methods=["GET"])
 @token_required
-@swag_from("../swagger_specs/booking_list.yml")
 def list_bookings(current_user):
     """List bookings for current user or all bookings for admin."""
     try:
@@ -105,7 +108,6 @@ def list_bookings(current_user):
 
 @booking_bp.route("/<uuid:booking_id>", methods=["PUT"])
 @token_required
-@swag_from("../swagger_specs/booking_update.yml")
 def update_booking(current_user, booking_id):
     """Update booking status."""
     try:
@@ -146,6 +148,11 @@ def update_booking(current_user, booking_id):
             "error": "Not Found",
             "message": err.message
         }), 404
+    except BookingConflictError as err:
+        return jsonify({
+            "error": "Conflict",
+            "message": err.message
+        }), 409
     except ValueError as err:
         return jsonify({
             "error": "Bad Request",
@@ -162,7 +169,6 @@ def update_booking(current_user, booking_id):
 
 @booking_bp.route("/<uuid:booking_id>", methods=["DELETE"])
 @token_required
-@swag_from("../swagger_specs/booking_cancel.yml")
 def cancel_booking(current_user, booking_id):
     """Cancel a booking."""
     try:
@@ -190,11 +196,11 @@ def cancel_booking(current_user, booking_id):
             "error": "Not Found",
             "message": err.message
         }), 404
-    except ValueError as err:
+    except BookingConflictError as err:
         return jsonify({
-            "error": "Bad Request",
-            "message": str(err)
-        }), 400
+            "error": "Conflict",
+            "message": err.message
+        }), 409
     except Exception as err:  # pylint: disable=broad-exception-caught
         from ticket_management_system.extensions import db
         db.session.rollback()
@@ -206,7 +212,6 @@ def cancel_booking(current_user, booking_id):
 
 @booking_bp.route("/<uuid:booking_id>", methods=["GET"])
 @token_required
-@swag_from("../swagger_specs/booking_get.yml")
 def get_booking(current_user, booking_id):
     """Get booking details by ID."""
     try:
@@ -236,7 +241,6 @@ def get_booking(current_user, booking_id):
 
 @booking_bp.route("/availability", methods=["GET"])
 @token_required
-@swag_from("../swagger_specs/booking_availability.yml")
 def get_seat_availability(_current_user):
     """Check seat availability."""
     try:

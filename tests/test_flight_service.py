@@ -423,6 +423,11 @@ class TestFlightServicePagination:
 
         assert result['pagination']['per_page'] == 100
 
+    def test_search_flights_sort_by_price_desc(self, app, multiple_flights):
+        """Highest base_price first when sorting price descending."""
+        result = FlightService.search_flights(sort_by='base_price', sort_order='desc', per_page=1)
+        assert result['flights'][0]['flight_code'] == 'FL109'
+
     def test_search_flights_pagination_metadata(self, app, multiple_flights):
         """Test pagination metadata is correct."""
         result = FlightService.search_flights(page=1, per_page=3)

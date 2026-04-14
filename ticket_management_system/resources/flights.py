@@ -1,6 +1,5 @@
 """Flight management API endpoints."""
 from flask import Blueprint, request, jsonify
-from flasgger import swag_from
 from marshmallow import ValidationError
 from ticket_management_system.extensions import cache
 from ticket_management_system.utils import handle_validation_error, handle_general_error, handle_conflict_error
@@ -15,7 +14,6 @@ flight_bp = Blueprint('flights', __name__, url_prefix='/api/flights')
 @flight_bp.route('/airports', methods=['GET'])
 @token_required
 @cache.cached(timeout=50)
-@swag_from("../swagger_specs/airports_list.yml")
 def get_airports(_current_user):
     """Get list of available airports."""
     try:
@@ -27,7 +25,6 @@ def get_airports(_current_user):
 
 @flight_bp.route('/search', methods=['GET'])
 @token_required
-@swag_from('../swagger_specs/flight_search.yml')
 def search_flights(_current_user):
     """Search flights with filters."""
     try:
@@ -36,12 +33,15 @@ def search_flights(_current_user):
         validated_data = schema.load(request.args)
 
         # Extract validated parameters
+        status = validated_data.get('status')
         origin_airport = validated_data.get('origin_airport')
         destination_airport = validated_data.get('destination_airport')
         departure_date = validated_data.get('departure_date')
         arrival_date = validated_data.get('arrival_date')
         page = validated_data.get('page', 1)
         per_page = validated_data.get('per_page', 10)
+        sort_by = validated_data.get('sort_by', 'departure_time')
+        sort_order = validated_data.get('sort_order', 'asc')
 
         # Convert date objects to strings for service layer
         departure_date_str = departure_date.strftime('%Y-%m-%d') if departure_date else None
@@ -49,12 +49,15 @@ def search_flights(_current_user):
 
         # Search flights using service
         result = FlightService.search_flights(
+            status=status,
             origin_airport=origin_airport,
             destination_airport=destination_airport,
             departure_date=departure_date_str,
             arrival_date=arrival_date_str,
             page=page,
-            per_page=per_page
+            per_page=per_page,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
 
         return jsonify(result), 200
@@ -67,7 +70,6 @@ def search_flights(_current_user):
 @flight_bp.route('/', methods=['POST'])
 @token_required
 @admin_required
-@swag_from('../swagger_specs/flight_add.yml')
 def add_flight(_current_user):
     """Add a new flight (admin only)."""
     try:
@@ -101,10 +103,27 @@ def add_flight(_current_user):
         return handle_general_error(e)
 
 
+@flight_bp.route('/<uuid:flight_id>', methods=['GET'])
+@token_required
+def get_flight(_current_user, flight_id):
+    """Get a single flight by ID."""
+    try:
+        flight = FlightService.get_flight_by_id(flight_id)
+        if not flight:
+            raise FlightNotFoundError(flight_id)
+        return jsonify({'flight': FlightService.format_flight_detail(flight)}), 200
+    except FlightNotFoundError as err:
+        return jsonify({
+            'error': 'Not Found',
+            'message': err.message
+        }), 404
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return handle_general_error(e, rollback=False)
+
+
 @flight_bp.route('/<uuid:flight_id>', methods=['DELETE'])
 @token_required
 @admin_required
-@swag_from('../swagger_specs/flight_delete.yml')
 def delete_flight(_current_user, flight_id):
     """Delete a flight by ID."""
     try:
@@ -125,7 +144,6 @@ def delete_flight(_current_user, flight_id):
 @flight_bp.route('/<uuid:flight_id>', methods=['PUT'])
 @token_required
 @admin_required
-@swag_from('../swagger_specs/flight_update.yml')
 def update_flight(_current_user, flight_id):
     """Update a flight by ID (admin only)."""
     try:

@@ -34,12 +34,17 @@ class FlightService:
 
     @staticmethod
     def search_flights(  # pylint: disable=too-many-positional-arguments,too-many-arguments
+            status=None,
             origin_airport=None, destination_airport=None,
             departure_date=None, arrival_date=None,
-            page=1, per_page=10):
+            page=1, per_page=10,
+            sort_by="departure_time", sort_order="asc"):
         """Search flights with filters."""
-        # Start with base query - only active flights
-        query = Flight.query.filter(Flight.status == FlightStatus.active)
+        query = Flight.query
+        if not status:
+            query = query.filter(Flight.status == FlightStatus.active)
+        elif status != "all":
+            query = query.filter(Flight.status == FlightStatus[status.lower()])
 
         # Apply filters if provided
         if origin_airport:
@@ -74,8 +79,14 @@ class FlightService:
             except ValueError:
                 pass  # Invalid date format, skip filter
 
-        # Order by departure time
-        query = query.order_by(Flight.departure_time.asc())
+        sort_columns = {
+            "departure_time": Flight.departure_time,
+            "arrival_time": Flight.arrival_time,
+            "base_price": Flight.base_price,
+        }
+        column = sort_columns.get(sort_by, Flight.departure_time)
+        is_desc = sort_order == "desc"
+        query = query.order_by(column.desc() if is_desc else column.asc())
 
         # Validate pagination parameters
         page = max(page, 1)
@@ -175,6 +186,12 @@ class FlightService:
             flight.arrival_time = kwargs['arrival_time']
         if 'base_price' in kwargs:
             flight.base_price = kwargs['base_price']
+        if 'status' in kwargs:
+            status = kwargs['status']
+            if isinstance(status, str):
+                flight.status = FlightStatus[status.lower()]
+            elif isinstance(status, FlightStatus):
+                flight.status = status
 
         db.session.commit()
         return flight

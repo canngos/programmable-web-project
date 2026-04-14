@@ -1,10 +1,15 @@
 """Database models for the Flight Management System."""
 import uuid
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Enum
 from sqlalchemy import DECIMAL as Decimal
 from ticket_management_system.extensions import db
+
+
+def _utcnow():
+    """Return current UTC time as a timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 # pylint: disable=invalid-name
 class Roles(enum.Enum):
@@ -23,8 +28,8 @@ class User(db.Model):
     email = db.Column(db.String(255), nullable=False, unique=True)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(Enum(Roles), nullable=False, default=Roles.user)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
 
     bookings = db.relationship("Booking", back_populates="user", lazy=True, cascade="all, delete-orphan")
 
@@ -52,8 +57,8 @@ class Flight(db.Model):
     arrival_time = db.Column(db.DateTime, nullable=False)
     base_price = db.Column(Decimal(8, 2), nullable=False)
     status = db.Column(Enum(FlightStatus), nullable=False, default=FlightStatus.active)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
 
     bookings = db.relationship("Booking", back_populates="flight", lazy=True, cascade="all, delete-orphan")
     tickets = db.relationship("Ticket", back_populates="flight", lazy=True, cascade="all, delete-orphan")
@@ -76,8 +81,8 @@ class Booking(db.Model):
     flight_id = db.Column(db.UUID, db.ForeignKey("flights.id", ondelete="CASCADE"))
     total_price = db.Column(Decimal(8, 2), nullable=False)
     booking_status = db.Column(Enum(BookingStatus), nullable=False, default=BookingStatus.booked)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
 
     user = db.relationship("User", back_populates="bookings")
     flight = db.relationship("Flight", back_populates="bookings")
@@ -102,91 +107,9 @@ class Ticket(db.Model):
     seat_num = db.Column(db.String(4), nullable=False)
     flight_id = db.Column(db.UUID, db.ForeignKey("flights.id", ondelete="CASCADE"))
     price = db.Column(Decimal(8, 2), nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
     seat_class = db.Column(Enum(SeatClass), nullable=False, default=SeatClass.economy)
 
     flight = db.relationship("Flight", back_populates="tickets")
     booking = db.relationship("Booking", back_populates="tickets")
-
-    def serialize(self):
-        """Serialize ticket to dictionary."""
-        return {
-            "booking_id" : self.booking_id,
-            "passenger_name" : self.passenger_name,
-            "passenger_passport_num" : self.passenger_passport_num,
-            "seat_num" : self.seat_num,
-            "seat_class" : self.seat_class,
-            "flight_id" : self.flight_id,
-            "price" : self.price,
-            "created_at" : self.created_at,
-            "updated_at" : self.updated_at
-        }
-
-    def deserialize(self, doc):
-        """Deserialize dictionary to ticket."""
-        self.booking_id = doc["booking_id"]
-        self.passenger_name = doc["passenger_name"]
-        self.passenger_passport_num = doc["passenger_passport_num"]
-        self.seat_num = doc["seat_num"]
-        self.seat_class = doc["seat_class"]
-        self.flight_id = doc["flight_id"]
-        self.price = doc["price"]
-        self.created_at = doc["created_at"]
-        self.updated_at = doc["updated_at"]
-
-    @staticmethod
-    def json_schema():
-        """Return JSON schema for ticket validation."""
-        schema = {
-            "type" : object,
-            "required" : [
-                "booking_id",
-                "passenger_name",
-                "passenger_passport_num",
-                "seat_num",
-                "seat_class",
-                "flight_id",
-                "price",
-                "created_at",
-                "updated_at"
-            ],
-        }
-        props = schema["properties"] = {}
-        props["booking_id"] = {
-            "description" : "booking id of the ticket",
-            "type" : "string"
-        }
-        props["passenger_name"] = {
-            "description" : "name of the passenger",
-            "type" : "string"
-        }
-        props["passenger_passport_num"] = {
-            "description" : "passport number of the passenger",
-            "type" : "string"
-        }
-        props["seat_num"] = {
-            "description" : "seat number assigned to the ticket",
-            "type" : "string"
-        }
-        props["seat_class"] = {
-            "description" : "class of the seat (economy, business, first)",
-            "type" : "string"
-        }
-        props["flight_id"] = {
-            "description" : "flight id associated with the ticket",
-            "type" : "string"
-        }
-        props["price"] = {
-            "description" : "price of the ticket",
-            "type" : "number"
-        }
-        props["created_at"] = {
-            "description" : "timestamp when the ticket was created",
-            "type" : "string"
-        }
-        props["updated_at"] = {
-            "description" : "timestamp when the ticket was last updated",
-            "type" : "string"
-        }
-        return schema

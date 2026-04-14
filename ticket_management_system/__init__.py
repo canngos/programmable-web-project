@@ -5,6 +5,12 @@ from dotenv import load_dotenv
 from flask import Flask
 from flasgger import Swagger
 
+_SWAGGER_TEMPLATE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "swagger_specs",
+    "swagger.yml",
+)
+
 from ticket_management_system.extensions import cache, db, migrate
 
 load_dotenv()
@@ -41,7 +47,7 @@ def create_app():
         "security": [{"Bearer": []}],
     }
 
-    Swagger(app)
+    Swagger(app, template_file=_SWAGGER_TEMPLATE)
 
     db.init_app(app)
     migrate.init_app(app, db)

@@ -30,10 +30,10 @@ def app():
 
     yield app
 
-    # Clean up: drop all tables after each test
     with app.app_context():
         db.session.remove()
         db.drop_all()
+        db.engine.dispose()
 
 
 
