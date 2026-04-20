@@ -8,12 +8,9 @@ from decimal import Decimal
 from unittest.mock import patch
 from urllib.parse import quote
 
-from werkzeug.security import generate_password_hash
-
 from ticket_management_system.extensions import db
 from ticket_management_system.models import Flight, FlightStatus, Roles, User
 from ticket_management_system.resources.booking_service import BookingService
-from ticket_management_system.resources.user_service import UserService
 
 
 def _create_test_flight(code="RT101", status=FlightStatus.active, base_price=Decimal("300.00")):
@@ -139,8 +136,8 @@ class TestCreateBookingEndpoint:
             db.session.delete(flight)
             db.session.commit()
 
-    def test_create_booking_requires_auth(self, client, sample_flights):
-        """Protected endpoint should reject missing token."""
+    def test_create_booking_without_auth_success(self, client, sample_flights):
+        """Public endpoint should create anonymous booking without token."""
         response = client.post(
             "/api/bookings/",
             json={
@@ -156,16 +153,18 @@ class TestCreateBookingEndpoint:
             }
         )
 
-        assert response.status_code == 401
+        assert response.status_code == 201
         data = response.get_json()
-        assert data["error"] == "Authentication required"
+        assert data["message"] == "Booking created successfully"
+        assert data["booking"]["user_id"] is None
+        assert data["booking"]["flight_id"] == str(sample_flights[0].id)
 
 
 class TestListBookingsEndpoint:
     """Test GET /api/bookings/ endpoint."""
 
-    def test_list_bookings_returns_current_user_only(self, client, app, test_user, auth_headers):
-        """Regular user should only see own bookings."""
+    def test_list_bookings_public_returns_all(self, client, app, test_user):
+        """Public booking list should return bookings across users."""
         with app.app_context():
             flight1 = _create_test_flight(code="RT103")
             flight2 = _create_test_flight(code="RT104")
@@ -177,7 +176,6 @@ class TestListBookingsEndpoint:
                 firstname="Other",
                 lastname="User",
                 email="other.user@test.com",
-                password_hash=generate_password_hash("password123"),
                 role=Roles.user
             )
             db.session.add(other_user)
@@ -209,13 +207,15 @@ class TestListBookingsEndpoint:
                 ]
             )
 
-            response = client.get("/api/bookings/", headers=auth_headers)
+            response = client.get("/api/bookings/")
             assert response.status_code == 200
             data = response.get_json()
 
             assert "bookings" in data
             assert "pagination" in data
-            assert all(item["user_id"] == str(test_user.id) for item in data["bookings"])
+            returned_user_ids = {item["user_id"] for item in data["bookings"]}
+            assert str(test_user.id) in returned_user_ids
+            assert str(other_user.id) in returned_user_ids
 
             db.session.delete(other_user)
             db.session.delete(flight1)
@@ -293,8 +293,8 @@ class TestGetBookingEndpoint:
             db.session.delete(flight)
             db.session.commit()
 
-    def test_get_booking_forbidden_for_non_owner(self, client, app, test_user):
-        """Non-owner user should get 403."""
+    def test_get_booking_public_can_read_any_booking(self, client, app):
+        """Public clients can retrieve booking details by ID."""
         with app.app_context():
             flight = _create_test_flight(code="RT107")
             db.session.add(flight)
@@ -304,7 +304,6 @@ class TestGetBookingEndpoint:
                 firstname="Booking",
                 lastname="Owner",
                 email="booking.owner@test.com",
-                password_hash=generate_password_hash("password123"),
                 role=Roles.user
             )
             db.session.add(owner)
@@ -324,13 +323,12 @@ class TestGetBookingEndpoint:
                 ]
             )
 
-            token = UserService.generate_token(test_user)
-            headers = {"Authorization": f"Bearer {token}"}
-            response = client.get(f"/api/bookings/{booking.id}", headers=headers)
+            response = client.get(f"/api/bookings/{booking.id}")
 
-            assert response.status_code == 403
+            assert response.status_code == 200
             data = response.get_json()
-            assert data["error"] == "Forbidden"
+            assert data["booking"]["id"] == str(booking.id)
+            assert data["booking"]["user_id"] == str(owner.id)
 
             db.session.delete(owner)
             db.session.delete(flight)
@@ -403,15 +401,16 @@ class TestSeatAvailabilityEndpoint:
         assert data["error"] == "Bad Request"
         assert "errors" in data
 
-    def test_seat_availability_requires_auth(self, client, app):
-        """Availability endpoint should require valid token."""
+    def test_seat_availability_without_auth_success(self, client, app):
+        """Availability endpoint should be public."""
         with app.app_context():
             flight = _create_test_flight(code="RT109")
             db.session.add(flight)
             db.session.commit()
 
             response = client.get(f"/api/bookings/availability?flight_id={flight.id}&seat_num=1A")
-            assert response.status_code == 401
+            assert response.status_code == 200
+            assert response.get_json()["available"] is True
 
             db.session.delete(flight)
             db.session.commit()
@@ -673,8 +672,8 @@ class TestUpdateBookingEndpoint:
         data = response.get_json()
         assert data["error"] == "Not Found"
 
-    def test_update_booking_forbidden_for_non_owner(self, client, app, test_user):
-        """Non-owner cannot update another user's booking."""
+    def test_update_booking_public_can_update_any_booking(self, client, app):
+        """Public clients can update booking status by ID."""
         with app.app_context():
             flight = _create_test_flight(code="RT117")
             db.session.add(flight)
@@ -684,7 +683,6 @@ class TestUpdateBookingEndpoint:
                 firstname="Booking",
                 lastname="Owner",
                 email="owner.update@test.com",
-                password_hash=generate_password_hash("password123"),
                 role=Roles.user
             )
             db.session.add(owner)
@@ -704,17 +702,15 @@ class TestUpdateBookingEndpoint:
                 ]
             )
 
-            token = UserService.generate_token(test_user)
-            headers = {"Authorization": f"Bearer {token}"}
             response = client.put(
                 f"/api/bookings/{booking.id}",
-                headers=headers,
                 json={"booking_status": "paid"}
             )
 
-            assert response.status_code == 403
+            assert response.status_code == 200
             data = response.get_json()
-            assert data["error"] == "Forbidden"
+            assert data["booking"]["booking_status"] == "paid"
+            assert data["booking"]["user_id"] == str(owner.id)
 
             db.session.delete(owner)
             db.session.delete(flight)
@@ -753,8 +749,8 @@ class TestUpdateBookingEndpoint:
             db.session.delete(flight)
             db.session.commit()
 
-    def test_update_booking_requires_auth(self, client, app, test_user):
-        """Update endpoint requires authentication."""
+    def test_update_booking_without_auth_success(self, client, app, test_user):
+        """Public endpoint can update booking without token."""
         with app.app_context():
             flight = _create_test_flight(code="RT119")
             db.session.add(flight)
@@ -778,9 +774,9 @@ class TestUpdateBookingEndpoint:
                 json={"booking_status": "paid"}
             )
 
-            assert response.status_code == 401
+            assert response.status_code == 200
             data = response.get_json()
-            assert data["error"] == "Authentication required"
+            assert data["booking"]["booking_status"] == "paid"
 
             db.session.delete(flight)
             db.session.commit()
@@ -936,8 +932,8 @@ class TestCancelBookingEndpoint:
         data = response.get_json()
         assert data["error"] == "Not Found"
 
-    def test_cancel_booking_forbidden_for_non_owner(self, client, app, test_user):
-        """Non-owner cannot cancel another user's booking."""
+    def test_cancel_booking_public_can_cancel_any_booking(self, client, app):
+        """Public clients can cancel booking by ID."""
         with app.app_context():
             flight = _create_test_flight(code="RT124")
             db.session.add(flight)
@@ -947,7 +943,6 @@ class TestCancelBookingEndpoint:
                 firstname="Booking",
                 lastname="Owner",
                 email="owner.cancel@test.com",
-                password_hash=generate_password_hash("password123"),
                 role=Roles.user
             )
             db.session.add(owner)
@@ -967,16 +962,12 @@ class TestCancelBookingEndpoint:
                 ]
             )
 
-            token = UserService.generate_token(test_user)
-            headers = {"Authorization": f"Bearer {token}"}
-            response = client.delete(
-                f"/api/bookings/{booking.id}",
-                headers=headers
-            )
+            response = client.delete(f"/api/bookings/{booking.id}")
 
-            assert response.status_code == 403
+            assert response.status_code == 200
             data = response.get_json()
-            assert data["error"] == "Forbidden"
+            assert data["booking"]["booking_status"] == "cancelled"
+            assert data["booking"]["user_id"] == str(owner.id)
 
             db.session.delete(owner)
             db.session.delete(flight)
@@ -1014,8 +1005,8 @@ class TestCancelBookingEndpoint:
             db.session.delete(flight)
             db.session.commit()
 
-    def test_cancel_booking_requires_auth(self, client, app, test_user):
-        """Cancel endpoint requires authentication."""
+    def test_cancel_booking_without_auth_success(self, client, app, test_user):
+        """Public endpoint can cancel booking without token."""
         with app.app_context():
             flight = _create_test_flight(code="RT126")
             db.session.add(flight)
@@ -1036,9 +1027,9 @@ class TestCancelBookingEndpoint:
 
             response = client.delete(f"/api/bookings/{booking.id}")
 
-            assert response.status_code == 401
+            assert response.status_code == 200
             data = response.get_json()
-            assert data["error"] == "Authentication required"
+            assert data["booking"]["booking_status"] == "cancelled"
 
             db.session.delete(flight)
             db.session.commit()

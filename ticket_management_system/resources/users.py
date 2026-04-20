@@ -1,65 +1,172 @@
-"""User authentication and management API endpoints."""
+"""User identity and scoped-token API endpoints."""
 from functools import wraps
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, make_response
 from marshmallow import ValidationError
 from ticket_management_system.models import Roles
 from ticket_management_system.utils import handle_validation_error, handle_general_error, handle_conflict_error
 from ticket_management_system.resources.user_service import UserService
-from ticket_management_system.static.schema.user_schemas import UserProfileUpdateSchema, UserRegistrationSchema
+from ticket_management_system.static.schema.user_schemas import UserProfileUpdateSchema, UserTokenRequestSchema
 from ticket_management_system.exceptions import (
-    InvalidCredentialsError,
     TokenExpiredError,
     InvalidTokenError,
     UserNotFoundError,
     EmailAlreadyExistsError,
-    InvalidRoleError
+    ResourcePermissionError,
 )
 
 user_bp = Blueprint('users', __name__, url_prefix='/api/users')
 
 
-def token_required(f):
-    """Decorator to require JWT authentication."""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
+def _attach_refreshed_token(response, user):
+    """Attach a refreshed token to successful protected responses."""
+    if 200 <= response.status_code < 400:
+        response.headers['X-Refreshed-Token'] = UserService.generate_token(user)
+        response.headers['X-Token-Expires-In'] = str(UserService.token_expires_in_seconds())
+        response.headers['Access-Control-Expose-Headers'] = (
+            'X-Refreshed-Token, X-Token-Expires-In'
+        )
+    return response
 
-        # Get token from Authorization header
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            try:
-                # Expected format: "Bearer <token>"
-                token = auth_header.split(" ")[1]
-            except IndexError:
+
+def token_required(required_resource=None):
+    """Decorator to require a scoped JWT token.
+
+    Supports both @token_required and @token_required('resource:scope').
+    """
+    if callable(required_resource):
+        view_func = required_resource
+        required_resource = None
+        return token_required(required_resource)(view_func)
+
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            token = None
+
+            if 'Authorization' in request.headers:
+                auth_header = request.headers['Authorization']
+                try:
+                    token_type, token = auth_header.split(" ", 1)
+                    if token_type.lower() != 'bearer':
+                        raise ValueError
+                except ValueError:
+                    return jsonify({
+                        'error': 'Invalid authorization header format',
+                        'message': 'Use format: Bearer <token>'
+                    }), 401
+
+            if not token:
                 return jsonify({
-                    'error': 'Invalid authorization header format',
-                    'message': 'Use format: Bearer <token>'
+                    'error': 'Authentication required',
+                    'message': 'No token provided'
                 }), 401
 
-        if not token:
-            return jsonify({
-                'error': 'Authentication required',
-                'message': 'No token provided'
-            }), 401
+            try:
+                current_user = UserService.verify_token(
+                    token,
+                    required_resource=required_resource
+                )
+            except TokenExpiredError as e:
+                return jsonify({
+                    'error': 'Token expired',
+                    'message': e.message
+                }), 401
+            except ResourcePermissionError as e:
+                return jsonify({
+                    'error': 'Forbidden',
+                    'message': e.message
+                }), 403
+            except (InvalidTokenError, UserNotFoundError) as e:
+                return jsonify({
+                    'error': 'Invalid token',
+                    'message': e.message
+                }), 401
 
-        # Verify token using service
+            response = make_response(f(current_user, *args, **kwargs))
+            return _attach_refreshed_token(response, current_user)
+
+        return decorated
+
+    return decorator
+
+
+def _issue_token_for_user_id(user_id):
+    """Issue a scoped token for an existing user ID."""
+    user = UserService.get_user_by_id(user_id)
+    if not user:
+        raise UserNotFoundError(user_id)
+
+    response = UserService.format_user_response(user, include_token=True)
+    response['message'] = 'Token issued successfully'
+    return response
+
+
+@user_bp.route('/token', methods=['POST'])
+def issue_token():  # pylint: disable=too-many-return-statements
+    """Issue a scoped token for a user ID."""
+    try:
         try:
-            current_user = UserService.verify_token(token)
-        except TokenExpiredError as e:
+            json_data = request.get_json()
+        except Exception:  # pylint: disable=broad-exception-caught
             return jsonify({
-                'error': 'Token expired',
-                'message': e.message
-            }), 401
-        except (InvalidTokenError, UserNotFoundError) as e:
+                'error': 'Bad Request',
+                'message': 'Request body must be valid JSON'
+            }), 400
+
+        if json_data is None:
             return jsonify({
-                'error': 'Invalid token',
-                'message': e.message
-            }), 401
+                'error': 'Bad Request',
+                'message': 'Request body must be JSON'
+            }), 400
 
-        # Pass current_user to the route
-        return f(current_user, *args, **kwargs)
+        schema = UserTokenRequestSchema()
+        validated_data = schema.load(json_data)
 
-    return decorated
+        return jsonify(_issue_token_for_user_id(validated_data['user_id'])), 200
+
+    except ValidationError as err:
+        return handle_validation_error(err)
+    except UserNotFoundError as e:
+        return jsonify({
+            'error': 'Not Found',
+            'message': e.message
+        }), 404
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return handle_general_error(e, rollback=False)
+
+
+@user_bp.route('/<uuid:user_id>/token', methods=['GET'])
+def issue_token_by_user_id(user_id):
+    """Issue a scoped token when the user ID is passed in the URL."""
+    try:
+        return jsonify(_issue_token_for_user_id(user_id)), 200
+    except UserNotFoundError as e:
+        return jsonify({
+            'error': 'Not Found',
+            'message': e.message
+        }), 404
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return handle_general_error(e, rollback=False)
+
+
+def legacy_auth_removed():
+    """Return the standard response for removed password auth endpoints."""
+    return jsonify({
+        'error': 'Gone',
+        'message': 'Password login/register has been removed. Request a scoped token with /api/users/token.'
+    }), 410
+
+
+@user_bp.route('/register', methods=['POST'])
+def register_removed():
+    """Password registration is no longer part of authentication."""
+    return legacy_auth_removed()
+
+
+@user_bp.route('/login', methods=['POST'])
+def login_removed():
+    """Password login is no longer part of authentication."""
+    return legacy_auth_removed()
 
 
 def admin_required(f):
@@ -77,103 +184,8 @@ def admin_required(f):
     return decorated
 
 
-@user_bp.route('/register', methods=['POST'])
-def register():  # pylint: disable=too-many-return-statements
-    """Register a new user."""
-    try:
-        # Get JSON data - handle empty body
-        try:
-            json_data = request.get_json()
-        except Exception:  # pylint: disable=broad-exception-caught
-            return jsonify({
-                'error': 'Bad Request',
-                'message': 'Request body must be valid JSON'
-            }), 400
-
-        # Check if request body is empty or None
-        if json_data is None:
-            return jsonify({
-                'error': 'Bad Request',
-                'message': 'Request body must be JSON'
-            }), 400
-
-        # Validate request data using Marshmallow schema
-        schema = UserRegistrationSchema()
-        validated_data = schema.load(json_data)
-
-        # Check if email already exists
-        if UserService.email_exists(validated_data['email']):
-            return jsonify({
-                'error': 'Conflict',
-                'message': 'Email already registered'
-            }), 409
-
-        # Validate and convert role
-        role = UserService.validate_role(validated_data.get('role'))
-
-        # Create new user
-        new_user = UserService.create_user(
-            firstname=validated_data['firstname'],
-            lastname=validated_data['lastname'],
-            email=validated_data['email'],
-            password=validated_data['password'],
-            role=role
-        )
-        # Format response with token
-        response = UserService.format_user_response(new_user, include_token=True)
-        response['message'] = 'User registered successfully'
-
-        return jsonify(response), 201
-    except ValidationError as err:
-        return handle_validation_error(err)
-    except InvalidRoleError as e:
-        return jsonify({
-            'error': 'Bad Request',
-            'message': e.message
-        }), 409
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        return handle_general_error(e)
-
-
-@user_bp.route('/login', methods=['POST'])
-def login():
-    """Login user and return JWT token."""
-    try:
-        data = request.get_json(force=True, silent=True)
-
-        # Validate required fields
-        if not data:
-            return jsonify({
-                'error': 'Bad Request',
-                'message': 'Request body must be JSON'
-            }), 400
-
-        if 'email' not in data or 'password' not in data:
-            return jsonify({
-                'error': 'Bad Request',
-                'message': 'Email and password are required'
-            }), 400
-
-        # Authenticate user
-        user = UserService.authenticate_user(data['email'], data['password'])
-
-        # Format response with token
-        response = UserService.format_user_response(user, include_token=True)
-        response['message'] = 'Login successful'
-
-        return jsonify(response), 200
-
-    except InvalidCredentialsError as e:
-        return jsonify({
-            'error': 'Unauthorized',
-            'message': e.message
-        }), 401
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        return handle_general_error(e, rollback=False)
-
-
 @user_bp.route('/me', methods=['GET'])
-@token_required
+@token_required('users:read:self')
 def get_current_user(current_user):
     """Get current user profile."""
     response = UserService.format_user_detail(current_user)
@@ -181,7 +193,7 @@ def get_current_user(current_user):
 
 
 @user_bp.route('/me', methods=['PATCH'])
-@token_required
+@token_required('users:update:self')
 def update_current_user(current_user):  # pylint: disable=too-many-return-statements
     """Update current user profile."""
     try:
@@ -209,7 +221,7 @@ def update_current_user(current_user):  # pylint: disable=too-many-return-statem
         if not validated_data:
             return jsonify({
                 'error': 'Bad Request',
-                'message': 'At least one field (firstname, lastname, email, or password) must be provided'
+                'message': 'At least one field (firstname, lastname, or email) must be provided'
             }), 400
 
         # Update user profile
@@ -217,8 +229,7 @@ def update_current_user(current_user):  # pylint: disable=too-many-return-statem
             user=current_user,
             firstname=validated_data.get('firstname'),
             lastname=validated_data.get('lastname'),
-            email=validated_data.get('email'),
-            password=validated_data.get('password')
+            email=validated_data.get('email')
         )
 
         # Format response
@@ -236,7 +247,7 @@ def update_current_user(current_user):  # pylint: disable=too-many-return-statem
 
 
 @user_bp.route('/', methods=['GET'])
-@token_required
+@token_required('users:read:all')
 @admin_required
 def get_all_users(_current_user):
     """Get paginated list of all users (admin only)."""

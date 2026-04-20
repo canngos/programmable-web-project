@@ -17,7 +17,6 @@ from ticket_management_system.exceptions import (
 from ticket_management_system.extensions import db
 from ticket_management_system.models import BookingStatus, Flight, FlightStatus, Roles, SeatClass, User
 from ticket_management_system.resources.booking_service import BookingService
-from werkzeug.security import generate_password_hash
 
 
 @pytest.fixture
@@ -28,7 +27,6 @@ def booking_user(app):
             firstname="Booking",
             lastname="Tester",
             email="booking.service@test.com",
-            password_hash=generate_password_hash("password123"),
             role=Roles.user
         )
         db.session.add(user)

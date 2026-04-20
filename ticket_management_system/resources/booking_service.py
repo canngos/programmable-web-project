@@ -2,13 +2,17 @@
 from decimal import Decimal, ROUND_HALF_UP
 
 from ticket_management_system.extensions import db
-from ticket_management_system.models import Booking, BookingStatus, Flight, FlightStatus, SeatClass, Ticket
+from ticket_management_system.models import Booking, BookingStatus, Flight, FlightStatus, SeatClass, Ticket, User
 from ticket_management_system.exceptions import (
     FlightNotFoundError,
     SeatUnavailableError,
     BookingNotFoundError,
     BookingConflictError,
+    UserNotFoundError,
 )
+
+from ticket_management_system.resources.user_service import UserService
+from ticket_management_system.models import Roles
 
 
 class BookingService:
@@ -83,6 +87,10 @@ class BookingService:
         if not isinstance(passengers, list) or len(passengers) == 0:
             raise ValueError("passengers must be a non-empty list")
 
+        # Raise an Exception if an invalid user_id was provided.
+        if user_id is not None and not User.query.filter_by(user_id=str(user_id)).first():
+            raise UserNotFoundError(user_id)
+
         flight = Flight.query.filter_by(id=flight_id).first()
         if not flight:
             raise FlightNotFoundError(flight_id)
@@ -98,8 +106,20 @@ class BookingService:
         total_price = Decimal("0.00")
 
         try:
+            # Create a new user if user id was not provided
+            if user_id is None:
+                newuser = passengers[0]
+                newuser = UserService.create_user(
+                    firstname = newuser["passenger_fname"],
+                    lastname = newuser["passenger_lname"],
+                    email= newuser["email"],
+                    role= Roles.user
+                )
+                booking_user_id = newuser.id
+            else:
+                booking_user_id = user_id
             booking = Booking(
-                user_id=user_id,
+                user_id= booking_user_id,
                 flight_id=flight.id,
                 total_price=Decimal("0.00"),
                 booking_status=normalized_booking_status
@@ -158,7 +178,7 @@ class BookingService:
         """Format booking summary for list views."""
         return {
             "id": str(booking.id),
-            "user_id": str(booking.user_id),
+            "user_id": str(booking.user_id) if booking.user_id else None,
             "flight_id": str(booking.flight_id),
             "total_price": str(booking.total_price),
             "booking_status": booking.booking_status.name,
@@ -169,7 +189,7 @@ class BookingService:
 
     @staticmethod
     def _build_ticket(booking_id, flight, passenger, requested_seats):
-        required_fields = ["passenger_name", "passenger_passport_num", "seat_num"]
+        required_fields = ["passenger_fname", "passenger_lname", "passenger_passport_num", "seat_num"]
         missing_fields = [
             field for field in required_fields
             if field not in passenger or passenger[field] in (None, "")

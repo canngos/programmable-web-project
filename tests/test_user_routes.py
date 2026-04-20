@@ -4,238 +4,67 @@ Tests all HTTP endpoints in the user routes blueprint.
 """
 
 from ticket_management_system.extensions import db
-from ticket_management_system.models import User
 
 
-class TestRegisterEndpoint:
-    """Test POST /api/users/register endpoint."""
+class TestTokenEndpoint:
+    """Test user-ID token grant endpoints."""
 
-    def test_register_success(self, client, app):
-        """Test successful user registration."""
+    def test_issue_token_success(self, client, app, test_user):
+        """A known user ID should receive a scoped token."""
         with app.app_context():
-            response = client.post('/api/users/register',
-                json={
-                    'firstname': 'John',
-                    'lastname': 'Doe',
-                    'email': 'john@example.com',
-                    'password': 'password123'
-                })
-
-            assert response.status_code == 201
-            data = response.get_json()
-
-            assert data['message'] == 'User registered successfully'
-            assert 'user' in data
-            assert data['user']['firstname'] == 'John'
-            assert data['user']['lastname'] == 'Doe'
-            assert data['user']['email'] == 'john@example.com'
-            assert data['user']['role'] == 'user'
-
-            assert 'token' in data
-            assert 'token_type' in data
-            assert data['token_type'] == 'Bearer'
-            assert 'expires_in' in data
-
-            # Cleanup
-            user = User.query.filter_by(email='john@example.com').first()
-            if user:
-                db.session.delete(user)
-                db.session.commit()
-
-    def test_register_with_admin_role(self, client, app):
-        """Test registration with admin role."""
-        with app.app_context():
-            response = client.post('/api/users/register',
-                json={
-                    'firstname': 'Admin',
-                    'lastname': 'User',
-                    'email': 'admin@example.com',
-                    'password': 'admin123',
-                    'role': 'admin'
-                })
-
-            assert response.status_code == 201
-            data = response.get_json()
-            assert data['user']['role'] == 'admin'
-
-            # Cleanup
-            user = User.query.filter_by(email='admin@example.com').first()
-            if user:
-                db.session.delete(user)
-                db.session.commit()
-
-    def test_register_missing_fields(self, client):
-        """Test registration with missing required fields."""
-        response = client.post('/api/users/register',
-            json={
-                'firstname': 'John',
-                'email': 'john@example.com'
-            })
-
-        assert response.status_code == 400
-        data = response.get_json()
-        assert data['error'] == 'Bad Request'
-        assert data['message'] == 'Validation failed'
-        assert 'errors' in data
-        assert 'lastname' in data['errors']
-        assert 'password' in data['errors']
-
-    def test_register_empty_body(self, client):
-        """Test registration with empty request body."""
-        response = client.post('/api/users/register',
-            data='',
-            content_type='application/json')
-
-        assert response.status_code == 400
-        data = response.get_json()
-        assert data['error'] == 'Bad Request'
-
-    def test_register_duplicate_email(self, client, app, test_user):
-        """Test registration with existing email."""
-        with app.app_context():
-            response = client.post('/api/users/register',
-                json={
-                    'firstname': 'Jane',
-                    'lastname': 'Doe',
-                    'email': test_user.email,
-                    'password': 'password123'
-                })
-
-            assert response.status_code == 409
-            data = response.get_json()
-            assert data['error'] == 'Conflict'
-            assert 'Email already registered' in data['message']
-
-    def test_register_firstname_too_long(self, client):
-        """Test registration with firstname exceeding max length."""
-        response = client.post('/api/users/register',
-            json={
-                'firstname': 'a' * 31,
-                'lastname': 'Doe',
-                'email': 'john@example.com',
-                'password': 'password123'
-            })
-
-        assert response.status_code == 400
-        data = response.get_json()
-        assert data['message'] == 'Validation failed'
-        assert 'errors' in data
-        assert 'firstname' in data['errors']
-
-    def test_register_password_too_short(self, client):
-        """Test registration with password too short."""
-        response = client.post('/api/users/register',
-            json={
-                'firstname': 'John',
-                'lastname': 'Doe',
-                'email': 'john@example.com',
-                'password': '12345'
-            })
-
-        assert response.status_code == 400
-        data = response.get_json()
-        assert data['message'] == 'Validation failed'
-        assert 'errors' in data
-        assert 'password' in data['errors']
-
-    def test_register_invalid_role(self, client):
-        """Test registration with invalid role."""
-        response = client.post('/api/users/register',
-            json={
-                'firstname': 'John',
-                'lastname': 'Doe',
-                'email': 'john@example.com',
-                'password': 'password123',
-                'role': 'superuser'
-            })
-
-        assert response.status_code == 400
-        data = response.get_json()
-        # Invalid role is caught by Marshmallow schema validation
-        assert data['message'] == 'Validation failed'
-        assert 'errors' in data
-        assert 'role' in data['errors']
-
-
-class TestLoginEndpoint:
-    """Test POST /api/users/login endpoint."""
-
-    def test_login_success(self, client, app, test_user):
-        """Test successful login."""
-        with app.app_context():
-            response = client.post('/api/users/login',
-                json={
-                    'email': test_user.email,
-                    'password': 'password123'
-                })
+            response = client.post('/api/users/token', json={'user_id': str(test_user.id)})
 
             assert response.status_code == 200
             data = response.get_json()
 
-            assert data['message'] == 'Login successful'
-            assert 'user' in data
-            assert data['user']['email'] == test_user.email
-            assert 'token' in data
-            assert 'token_type' in data
+            assert data['message'] == 'Token issued successfully'
+            assert data['user']['id'] == str(test_user.id)
             assert data['token_type'] == 'Bearer'
+            assert 'token' in data
+            assert 'expires_in' in data
+            assert 'permitted_resources' in data
+            assert 'users:read:self' in data['permitted_resources']
 
-    def test_login_wrong_password(self, client, app, test_user):
-        """Test login with wrong password."""
+    def test_issue_token_by_user_id_success(self, client, app, test_user):
+        """A user ID in the URL should also issue a scoped token."""
         with app.app_context():
-            response = client.post('/api/users/login',
-                json={
-                    'email': test_user.email,
-                    'password': 'wrongpassword'
-                })
+            response = client.get(f'/api/users/{test_user.id}/token')
 
-            assert response.status_code == 401
+            assert response.status_code == 200
             data = response.get_json()
-            assert data['error'] == 'Unauthorized'
-            assert 'Invalid email or password' in data['message']
+            assert data['user']['id'] == str(test_user.id)
+            assert 'token' in data
 
-    def test_login_nonexistent_user(self, client):
-        """Test login with non-existent user."""
-        response = client.post('/api/users/login',
-            json={
-                'email': 'nonexistent@example.com',
-                'password': 'password123'
-            })
-
-        assert response.status_code == 401
-        data = response.get_json()
-        assert data['error'] == 'Unauthorized'
-
-    def test_login_missing_email(self, client):
-        """Test login without email."""
-        response = client.post('/api/users/login',
-            json={
-                'password': 'password123'
-            })
+    def test_issue_token_missing_user_id(self, client):
+        """Token request requires user_id."""
+        response = client.post('/api/users/token', json={})
 
         assert response.status_code == 400
         data = response.get_json()
-        assert 'Email and password are required' in data['message']
+        assert data['message'] == 'Validation failed'
+        assert 'user_id' in data['errors']
 
-    def test_login_missing_password(self, client):
-        """Test login without password."""
-        response = client.post('/api/users/login',
-            json={
-                'email': 'test@example.com'
-            })
+    def test_issue_token_unknown_user(self, client):
+        """Unknown user IDs should return 404."""
+        response = client.post('/api/users/token', json={'user_id': '00000000-0000-0000-0000-000000000000'})
 
-        assert response.status_code == 400
+        assert response.status_code == 404
         data = response.get_json()
-        assert 'Email and password are required' in data['message']
+        assert data['error'] == 'Not Found'
 
-    def test_login_empty_body(self, client):
-        """Test login with empty request body."""
-        response = client.post('/api/users/login',
-            data='',
-            content_type='application/json')
+    def test_register_endpoint_removed(self, client):
+        """Password registration endpoint is no longer available for auth."""
+        response = client.post('/api/users/register', json={})
 
-        assert response.status_code == 400
-        data = response.get_json()
-        assert data['error'] == 'Bad Request'
+        assert response.status_code == 410
+        assert response.get_json()['error'] == 'Gone'
+
+    def test_login_endpoint_removed(self, client):
+        """Password login endpoint is no longer available for auth."""
+        response = client.post('/api/users/login', json={})
+
+        assert response.status_code == 410
+        assert response.get_json()['error'] == 'Gone'
 
 
 class TestGetCurrentUserEndpoint:
@@ -352,7 +181,7 @@ class TestGetAllUsersEndpoint:
             assert response.status_code == 403
             data = response.get_json()
             assert data['error'] == 'Forbidden'
-            assert 'Admin privileges required' in data['message']
+            assert 'users:read:all' in data['message']
 
     def test_get_all_users_no_token(self, client):
         """Test getting all users without token."""
@@ -408,18 +237,16 @@ class TestUpdateCurrentUserEndpoint:
         data = response.get_json()
         assert data['user']['email'] == new_email
 
-    def test_update_password_only(self, client, auth_headers):
-        """Test successfully updating password."""
+    def test_update_password_field_rejected(self, client, auth_headers):
+        """Password updates are no longer part of user profile auth."""
         response = client.patch('/api/users/me',
             json={'password': 'newSecurePassword123'},
             headers=auth_headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 400
         data = response.get_json()
-        assert data['message'] == 'Profile updated successfully'
-        # Password hash should not be in response
-        assert 'password' not in data['user']
-        assert 'password_hash' not in data['user']
+        assert data['message'] == 'Validation failed'
+        assert 'password' in data['errors']
 
     def test_update_multiple_fields_simultaneously(self, client, auth_headers):
         """Test updating multiple fields in a single request."""
@@ -519,8 +346,8 @@ class TestUpdateCurrentUserEndpoint:
         assert 'errors' in data
         assert 'email' in data['errors']
 
-    def test_update_password_below_minimum_length(self, client, auth_headers):
-        """Test password validation when below 6 characters."""
+    def test_update_password_below_minimum_length_rejected(self, client, auth_headers):
+        """Any password field is rejected because password auth was removed."""
         response = client.patch('/api/users/me',
             json={'password': '12345'},
             headers=auth_headers)
@@ -640,15 +467,16 @@ class TestUpdateCurrentUserEndpoint:
         data = response.get_json()
         assert data['user']['firstname'] == 'A'
 
-    def test_update_password_minimum_length(self, client, auth_headers):
-        """Test password accepts minimum valid length of 6 characters."""
+    def test_update_password_minimum_length_rejected(self, client, auth_headers):
+        """Password field remains rejected even when its length is valid."""
         response = client.patch('/api/users/me',
             json={'password': '123456'},
             headers=auth_headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 400
         data = response.get_json()
-        assert data['message'] == 'Profile updated successfully'
+        assert data['message'] == 'Validation failed'
+        assert 'password' in data['errors']
 
     def test_update_with_special_characters_in_name(self, client, auth_headers):
         """Test update accepts names with special characters."""

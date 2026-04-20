@@ -10,7 +10,6 @@ from ticket_management_system import create_app
 from ticket_management_system.extensions import db
 from ticket_management_system.models import User, Roles
 from ticket_management_system.resources.user_service import UserService
-from werkzeug.security import generate_password_hash
 
 
 @pytest.fixture(scope='function')
@@ -51,7 +50,6 @@ def test_user(app):
             firstname='Test',
             lastname='User',
             email='test@example.com',
-            password_hash=generate_password_hash('password123'),
             role=Roles.user
         )
         db.session.add(user)
@@ -71,7 +69,6 @@ def admin_user(app):
             firstname='Admin',
             lastname='User',
             email='admin@test.com',
-            password_hash=generate_password_hash('admin123'),
             role=Roles.admin
         )
         db.session.add(user)
@@ -108,6 +105,7 @@ def expired_token(app, test_user):
             'user_id': str(test_user.id),
             'email': test_user.email,
             'role': test_user.role.name,
+            'permitted_resources': UserService.get_permitted_resources(test_user),
             'exp': datetime.now(timezone.utc) - timedelta(hours=1),
             'iat': datetime.now(timezone.utc) - timedelta(hours=2)
         }
@@ -124,7 +122,6 @@ def multiple_users(app):
                 firstname=f'User{i}',
                 lastname=f'Test{i}',
                 email=f'user{i}@test.com',
-                password_hash=generate_password_hash('password123'),
                 role=Roles.user
             )
             users.append(user)

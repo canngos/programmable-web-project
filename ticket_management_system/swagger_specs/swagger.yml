@@ -1,10 +1,10 @@
 swagger: '2.0'
 info:
   title: Flight Management System API
-  description: RESTful API for managing flights, bookings, and user authentication
+  description: RESTful API for managing flights and bookings with scoped user-ID tokens
   version: 1.0.0
 basePath: /api
-host: localhost:5000
+host: localhost:8080
 schemes:
 - http
 - https
@@ -171,13 +171,20 @@ definitions:
         $ref: '#/definitions/User'
       token:
         type: string
-        description: JWT token
+        description: Scoped JWT token
       token_type:
         type: string
         example: Bearer
       expires_in:
         type: integer
-        example: 86400
+        example: 1800
+      permitted_resources:
+        type: array
+        items:
+          type: string
+        example:
+        - flights:read
+        - users:read:self
 
   Ticket:
     type: object
@@ -212,6 +219,8 @@ definitions:
       user_id:
         type: string
         format: uuid
+        x-nullable: true
+        description: Optional user identifier. Null for anonymous/public bookings.
       flight_id:
         type: string
         format: uuid
@@ -358,11 +367,11 @@ definitions:
         type: boolean
 
 paths:
-  /users/register:
+  /users/token:
     post:
-      summary: User registration
-      description: Register a new user account. Returns a JWT token for immediate authentication.
-      operationId: registerUser
+      summary: Issue scoped token
+      description: Issue a short-lived JWT by passing an existing user ID. The token includes permitted_resources and is refreshed on successful protected API activity.
+      operationId: issueUserToken
       tags:
       - Authentication
       parameters:
@@ -372,52 +381,17 @@ paths:
         schema:
           type: object
           required:
-          - firstname
-          - lastname
-          - email
-          - password
+          - user_id
           properties:
-            firstname:
+            user_id:
               type: string
-              maxLength: 30
-              example: John
-            lastname:
-              type: string
-              maxLength: 30
-              example: Doe
-            email:
-              type: string
-              format: email
-              example: john@example.com
-            password:
-              type: string
-              minLength: 6
-              format: password
-              example: password123
-            role:
-              type: string
-              enum:
-              - user
-              - admin
-              default: user
+              format: uuid
+              example: 550e8400-e29b-41d4-a716-446655440000
       responses:
-        201:
-          description: User registered successfully
+        200:
+          description: Token issued successfully
           schema:
             $ref: '#/definitions/UserResponse'
-          examples:
-            application/json:
-              message: User registered successfully
-              user:
-                id: 550e8400-e29b-41d4-a716-446655440000
-                firstname: John
-                lastname: Doe
-                email: john@example.com
-                role: user
-                created_at: '2026-04-06T10:30:00'
-              token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-              token_type: Bearer
-              expires_in: 86400
         400:
           description: Validation error
           schema:
@@ -429,59 +403,65 @@ paths:
               errors:
                 field:
                 - Validation error message
-        409:
-          description: Email already exists
+        404:
+          description: User not found
           schema:
-            $ref: '#/definitions/ConflictError'
+            $ref: '#/definitions/NotFoundError'
           examples:
-            application/json: &conflict_error_example
-              error: Conflict
-              message: Resource already exists or operation cannot be completed
+            application/json: &not_found_error_example
+              error: Not Found
+              message: Resource not found
 
-  /users/login:
-    post:
-      summary: User login
-      description: Authenticate a user with email and password. Returns a JWT token for subsequent requests.
-      operationId: loginUser
+  /users/{user_id}/token:
+    get:
+      summary: Issue scoped token by path user ID
+      description: Issue a short-lived JWT for an existing user ID supplied in the URL.
+      operationId: issueUserTokenById
       tags:
       - Authentication
       parameters:
-      - in: body
-        name: body
+      - name: user_id
+        in: path
         required: true
-        schema:
-          type: object
-          required:
-          - email
-          - password
-          properties:
-            email:
-              type: string
-              format: email
-              example: john@example.com
-            password:
-              type: string
-              minLength: 6
-              example: password123
+        type: string
+        format: uuid
       responses:
         200:
-          description: Login successful
+          description: Token issued successfully
           schema:
             $ref: '#/definitions/UserResponse'
-        400:
-          description: Missing required fields
+        404:
+          description: User not found
           schema:
-            $ref: '#/definitions/ValidationError'
+            $ref: '#/definitions/NotFoundError'
           examples:
-            application/json: *validation_error_example
-        401:
-          description: Invalid credentials
+            application/json: *not_found_error_example
+
+  /users/register:
+    post:
+      summary: Legacy registration removed
+      description: Password registration has been removed. Use /users/token with an existing user ID.
+      operationId: registerUserRemoved
+      tags:
+      - Authentication
+      responses:
+        410:
+          description: Registration removed
           schema:
-            $ref: '#/definitions/AuthError'
-          examples:
-            application/json: &auth_error_example
-              error: Unauthorized
-              message: Invalid or missing authentication token
+            $ref: '#/definitions/Error'
+
+  /users/login:
+    post:
+      summary: Legacy login removed
+      description: Password login has been removed. Use /users/token with an existing user ID.
+      operationId: loginUserRemoved
+      tags:
+      - Authentication
+      responses:
+        410:
+          description: Login removed
+          schema:
+            $ref: '#/definitions/Error'
 
   /users/me:
     get:
@@ -505,7 +485,9 @@ paths:
           schema:
             $ref: '#/definitions/AuthError'
           examples:
-            application/json: *auth_error_example
+            application/json: &auth_error_example
+              error: Unauthorized
+              message: Invalid or missing authentication token
     patch:
       summary: Update current user profile
       description: Update the profile information of the currently authenticated user.
@@ -530,9 +512,6 @@ paths:
             email:
               type: string
               format: email
-            password:
-              type: string
-              minLength: 6
       responses:
         200:
           description: Profile updated successfully
@@ -560,7 +539,9 @@ paths:
           schema:
             $ref: '#/definitions/ConflictError'
           examples:
-            application/json: *conflict_error_example
+            application/json: &conflict_error_example
+              error: Conflict
+              message: Resource already exists or operation cannot be completed
 
   /users/:
     get:
@@ -804,9 +785,7 @@ paths:
           schema:
             $ref: '#/definitions/NotFoundError'
           examples:
-            application/json: &not_found_error_example
-              error: Not Found
-              message: Resource not found
+            application/json: *not_found_error_example
     delete:
       summary: Delete a flight (Admin only)
       description: Delete a flight from the system. Only administrators can delete flights.
@@ -919,12 +898,10 @@ paths:
   /bookings:
     post:
       summary: Create a new booking
-      description: Create a new flight booking with one or more passengers.
+      description: Create a public flight booking with one or more passengers. Authentication is not required.
       operationId: createBooking
       tags:
       - Bookings
-      security:
-      - Bearer: []
       parameters:
       - in: body
         name: body
@@ -935,6 +912,11 @@ paths:
           - flight_id
           - passengers
           properties:
+            user_id:
+              type: string
+              format: uuid
+              x-nullable: true
+              description: Optional user identifier for clients that want to associate the booking with an existing user.
             flight_id:
               type: string
               format: uuid
@@ -971,14 +953,8 @@ paths:
             $ref: '#/definitions/ValidationError'
           examples:
             application/json: *validation_error_example
-        401:
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/AuthError'
-          examples:
-            application/json: *auth_error_example
         404:
-          description: Flight not found
+          description: Flight or user not found
           schema:
             $ref: '#/definitions/NotFoundError'
           examples:
@@ -991,19 +967,13 @@ paths:
             application/json: *conflict_error_example
     get:
       summary: List bookings
-      description: List bookings for the current user or all users (admin only).
+      description: List public bookings with pagination. Authentication is not required.
       operationId: listBookings
       tags:
       - Bookings
-      security:
-      - Bearer: []
       parameters:
       - $ref: '#/parameters/PageParam'
       - $ref: '#/parameters/PerPageParam'
-      - name: all
-        in: query
-        type: boolean
-        description: Admin only - return all bookings
       responses:
         200:
           description: Paginated list of bookings
@@ -1015,22 +985,14 @@ paths:
             $ref: '#/definitions/ValidationError'
           examples:
             application/json: *validation_error_example
-        401:
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/AuthError'
-          examples:
-            application/json: *auth_error_example
 
   /bookings/{booking_id}:
     get:
       summary: Get booking details
-      description: Retrieve details of a specific booking including tickets.
+      description: Retrieve details of a specific public booking including tickets.
       operationId: getBooking
       tags:
       - Bookings
-      security:
-      - Bearer: []
       parameters:
       - $ref: '#/parameters/BookingIdParam'
       responses:
@@ -1041,18 +1003,6 @@ paths:
             properties:
               booking:
                 $ref: '#/definitions/Booking'
-        401:
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/AuthError'
-          examples:
-            application/json: *auth_error_example
-        403:
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/ForbiddenError'
-          examples:
-            application/json: *forbidden_error_example
         404:
           description: Booking not found
           schema:
@@ -1061,12 +1011,10 @@ paths:
             application/json: *not_found_error_example
     put:
       summary: Update booking status
-      description: Update the status of an existing booking.
+      description: Update the status of an existing public booking. Authentication is not required.
       operationId: updateBooking
       tags:
       - Bookings
-      security:
-      - Bearer: []
       parameters:
       - $ref: '#/parameters/BookingIdParam'
       - in: body
@@ -1095,18 +1043,6 @@ paths:
             $ref: '#/definitions/ValidationError'
           examples:
             application/json: *validation_error_example
-        401:
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/AuthError'
-          examples:
-            application/json: *auth_error_example
-        403:
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/ForbiddenError'
-          examples:
-            application/json: *forbidden_error_example
         404:
           description: Booking not found
           schema:
@@ -1121,12 +1057,10 @@ paths:
             application/json: *conflict_error_example
     delete:
       summary: Cancel booking
-      description: Cancel an existing booking by setting its status to cancelled.
+      description: Cancel an existing public booking by setting its status to cancelled. Authentication is not required.
       operationId: cancelBooking
       tags:
       - Bookings
-      security:
-      - Bearer: []
       parameters:
       - $ref: '#/parameters/BookingIdParam'
       responses:
@@ -1134,18 +1068,6 @@ paths:
           description: Booking cancelled successfully
           schema:
             $ref: '#/definitions/BookingResponse'
-        401:
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/AuthError'
-          examples:
-            application/json: *auth_error_example
-        403:
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/ForbiddenError'
-          examples:
-            application/json: *forbidden_error_example
         404:
           description: Booking not found
           schema:
@@ -1162,12 +1084,10 @@ paths:
   /bookings/availability:
     get:
       summary: Check seat availability
-      description: Check if a specific seat is available on a given flight.
+      description: Check if a specific seat is available on a given flight. Authentication is not required.
       operationId: checkAvailability
       tags:
       - Bookings
-      security:
-      - Bearer: []
       parameters:
       - name: flight_id
         in: query
@@ -1189,12 +1109,6 @@ paths:
             $ref: '#/definitions/ValidationError'
           examples:
             application/json: *validation_error_example
-        401:
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/AuthError'
-          examples:
-            application/json: *auth_error_example
 
   /payments:
     post:

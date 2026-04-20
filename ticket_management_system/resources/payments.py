@@ -12,7 +12,7 @@ from ticket_management_system.resources.users import token_required
 payment_bp = Blueprint('payments', __name__, url_prefix='/api/payments')
 
 @payment_bp.route('/', methods=['POST'])
-@token_required
+@token_required('payments:create')
 def process_payment(current_user):  # pylint: disable=too-many-return-statements
     """
     Process payment for a booking and confirm it.

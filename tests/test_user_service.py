@@ -4,11 +4,16 @@ Tests all business logic methods in the user service layer.
 """
 
 from datetime import datetime, timezone, timedelta
-from werkzeug.security import check_password_hash
 from ticket_management_system.extensions import db
 from ticket_management_system.models import User, Roles
 from ticket_management_system.resources.user_service import UserService
-from ticket_management_system.exceptions import InvalidRoleError, InvalidCredentialsError, TokenExpiredError, InvalidTokenError, UserNotFoundError
+from ticket_management_system.exceptions import (
+    InvalidRoleError,
+    InvalidTokenError,
+    ResourcePermissionError,
+    TokenExpiredError,
+    UserNotFoundError,
+)
 import jwt
 import os
 import pytest
@@ -70,7 +75,6 @@ class TestUserServiceDatabaseOperations:
                 firstname='Jane',
                 lastname='Smith',
                 email='jane@example.com',
-                password='password123',
                 role=Roles.user
             )
 
@@ -79,7 +83,6 @@ class TestUserServiceDatabaseOperations:
             assert user.lastname == 'Smith'
             assert user.email == 'jane@example.com'
             assert user.role == Roles.user
-            assert check_password_hash(user.password_hash, 'password123')
             assert user.created_at is not None
 
             # Cleanup
@@ -93,7 +96,6 @@ class TestUserServiceDatabaseOperations:
                 firstname='Admin',
                 lastname='User',
                 email='admin2@example.com',
-                password='admin123',
                 role=Roles.admin
             )
 
@@ -120,36 +122,8 @@ class TestUserServiceDatabaseOperations:
             assert user is None
 
 
-class TestUserServiceAuthentication:
-    """Test authentication methods."""
-
-    def test_authenticate_user_success(self, app, test_user):
-        """Test successful user authentication."""
-        with app.app_context():
-            user = UserService.authenticate_user(
-                test_user.email,
-                'password123'
-            )
-            assert user is not None
-            assert user.id == test_user.id
-
-    def test_authenticate_user_wrong_password(self, app, test_user):
-        """Test authentication with wrong password raises exception."""
-        with app.app_context():
-            with pytest.raises(InvalidCredentialsError):
-                UserService.authenticate_user(
-                    test_user.email,
-                    'wrongpassword'
-                )
-
-    def test_authenticate_user_nonexistent_email(self, app):
-        """Test authentication with non-existent email raises exception."""
-        with app.app_context():
-            with pytest.raises(InvalidCredentialsError):
-                UserService.authenticate_user(
-                    'nonexistent@example.com',
-                    'password123'
-                )
+class TestUserServiceTokenAuthentication:
+    """Test scoped token authentication methods."""
 
     def test_generate_token(self, app, test_user):
         """Test JWT token generation."""
@@ -165,6 +139,8 @@ class TestUserServiceAuthentication:
             assert payload['user_id'] == str(test_user.id)
             assert payload['email'] == test_user.email
             assert payload['role'] == test_user.role.name
+            assert 'permitted_resources' in payload
+            assert 'users:read:self' in payload['permitted_resources']
             assert 'exp' in payload
             assert 'iat' in payload
 
@@ -177,6 +153,22 @@ class TestUserServiceAuthentication:
             assert user is not None
             assert user.id == test_user.id
 
+    def test_verify_token_with_required_resource(self, app, test_user):
+        """Test token verification succeeds for permitted resource."""
+        with app.app_context():
+            token = UserService.generate_token(test_user)
+            user = UserService.verify_token(token, required_resource='users:read:self')
+
+            assert user.id == test_user.id
+
+    def test_verify_token_rejects_unpermitted_resource(self, app, test_user):
+        """Test token verification rejects missing resource scope."""
+        with app.app_context():
+            token = UserService.generate_token(test_user)
+
+            with pytest.raises(ResourcePermissionError):
+                UserService.verify_token(token, required_resource='users:read:all')
+
     def test_verify_token_expired(self, app, test_user):
         """Test verifying an expired token raises exception."""
         with app.app_context():
@@ -186,6 +178,7 @@ class TestUserServiceAuthentication:
                 'user_id': str(test_user.id),
                 'email': test_user.email,
                 'role': test_user.role.name,
+                'permitted_resources': UserService.get_permitted_resources(test_user),
                 'exp': datetime.now(timezone.utc) - timedelta(hours=1),  # Expired 1 hour ago
                 'iat': datetime.now(timezone.utc) - timedelta(hours=2)
             }
@@ -210,6 +203,7 @@ class TestUserServiceAuthentication:
                 'user_id': fake_id,
                 'email': 'fake@example.com',
                 'role': 'user',
+                'permitted_resources': ['users:read:self'],
                 'exp': datetime.now(timezone.utc) + timedelta(hours=24),
                 'iat': datetime.now(timezone.utc)
             }
@@ -250,7 +244,8 @@ class TestUserServiceFormatting:
             assert 'expires_in' in response
 
             assert response['token_type'] == 'Bearer'
-            assert response['expires_in'] == 24 * 3600
+            assert response['expires_in'] == UserService.token_expires_in_seconds()
+            assert 'permitted_resources' in response
             assert isinstance(response['token'], str)
 
     def test_format_user_detail(self, app, test_user):

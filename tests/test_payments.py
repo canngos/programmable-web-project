@@ -8,7 +8,6 @@ from ticket_management_system.models import (
 )
 from ticket_management_system.resources.booking_service import BookingService
 from ticket_management_system.resources.user_service import UserService
-from werkzeug.security import generate_password_hash
 
 
 class TestPaymentValidation:
@@ -248,14 +247,12 @@ class TestPaymentPermissionDenied:
                 firstname='User1',
                 lastname='One',
                 email=f'user1_{uuid.uuid4().hex[:8]}@test.com',
-                password_hash=generate_password_hash('password123'),
                 role=Roles.user
             )
             user2 = User(
                 firstname='User2',
                 lastname='Two',
                 email=f'user2_{uuid.uuid4().hex[:8]}@test.com',
-                password_hash=generate_password_hash('password123'),
                 role=Roles.user
             )
             db.session.add(user1)
