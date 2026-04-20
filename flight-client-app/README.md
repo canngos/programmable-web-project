@@ -75,7 +75,7 @@ npm run preview
    - Protected routes for authenticated pages
 
 2. **Flight search**
-   - Search by origin, destination, departure date, and arrival date
+   - Search by origin, destination, and departure date
    - Flight cards show route, times, status, and base price
 
 3. **Booking wizard (multi-step)**
@@ -91,7 +91,12 @@ npm run preview
    - Detail dialog shows ticket table (passenger, passport, seat, class, price)
    - Cancel and pay actions available in both card and detail view
 
-5. **Profile**
+5. **Payment page**
+   - Dedicated payment route (`/bookings/:bookingId/pay`)
+   - Mock payment form for `credit_card_number` and `security_code`
+   - Shows booking amount and status before payment submission
+
+6. **Profile**
    - Profile fetch and update with validation and feedback
 
 ## Sources and Credits
@@ -106,4 +111,4 @@ The implementation uses official documentation and APIs from:
 - Zod docs: [https://zod.dev/](https://zod.dev/)
 - Axios docs: [https://axios-http.com/docs/intro](https://axios-http.com/docs/intro)
 
-No external template code was copied directly beyond standard library/framework usage patterns.
+No external template code was copied directly. The implementation follows official documentation and standard usage patterns from the libraries listed above.
