@@ -978,10 +978,12 @@ paths:
             application/json: *conflict_error_example
     get:
       summary: List bookings
-      description: List public bookings with pagination. Authentication is not required.
+      description: List bookings with pagination. Regular token users receive only their own bookings; admins receive all bookings.
       operationId: listBookings
       tags:
       - Bookings
+      security:
+      - Bearer: []
       parameters:
       - $ref: '#/parameters/PageParam'
       - $ref: '#/parameters/PerPageParam'
@@ -996,6 +998,18 @@ paths:
             $ref: '#/definitions/ValidationError'
           examples:
             application/json: *validation_error_example
+        401:
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/AuthError'
+          examples:
+            application/json: *auth_error_example
+        403:
+          description: Forbidden - missing bookings:read permission
+          schema:
+            $ref: '#/definitions/ForbiddenError'
+          examples:
+            application/json: *forbidden_error_example
 
   /bookings/{booking_id}:
     get:

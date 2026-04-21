@@ -163,8 +163,16 @@ class TestCreateBookingEndpoint:
 class TestListBookingsEndpoint:
     """Test GET /api/bookings/ endpoint."""
 
-    def test_list_bookings_public_returns_all(self, client, app, test_user):
-        """Public booking list should return bookings across users."""
+    def test_list_bookings_requires_auth(self, client):
+        """Booking list requires a bearer token."""
+        response = client.get("/api/bookings/")
+
+        assert response.status_code == 401
+
+    def test_list_bookings_user_returns_only_own_bookings(
+        self, client, app, auth_headers, test_user
+    ):
+        """Regular token users should only receive their own bookings."""
         with app.app_context():
             flight1 = _create_test_flight(code="RT103")
             flight2 = _create_test_flight(code="RT104")
@@ -207,47 +215,138 @@ class TestListBookingsEndpoint:
                 ]
             )
 
-            response = client.get("/api/bookings/")
+            response = client.get("/api/bookings/", headers=auth_headers)
             assert response.status_code == 200
             data = response.get_json()
 
             assert "bookings" in data
             assert "pagination" in data
             returned_user_ids = {item["user_id"] for item in data["bookings"]}
-            assert str(test_user.id) in returned_user_ids
-            assert str(other_user.id) in returned_user_ids
+            assert returned_user_ids == {str(test_user.id)}
+            assert data["pagination"]["total_items"] == 1
 
             db.session.delete(other_user)
             db.session.delete(flight1)
             db.session.delete(flight2)
             db.session.commit()
 
-    def test_list_bookings_admin_all_true_returns_all_users(self, client, app, admin_headers, test_user):
-        """Admin can fetch all bookings with all=true."""
+    def test_list_bookings_user_all_true_still_returns_only_own_bookings(
+        self, client, app, auth_headers, test_user
+    ):
+        """The all=true query flag must not widen access for regular users."""
         with app.app_context():
-            flight = _create_test_flight(code="RT105")
-            db.session.add(flight)
+            flight1 = _create_test_flight(code="RT105")
+            flight2 = _create_test_flight(code="RT106")
+            db.session.add(flight1)
+            db.session.add(flight2)
             db.session.commit()
+
+            other_user = User(
+                firstname="Other",
+                lastname="User",
+                email="other.user.all@test.com",
+                role=Roles.user
+            )
+            db.session.add(other_user)
+            db.session.commit()
+            db.session.refresh(other_user)
 
             BookingService.book_tickets(
                 user_id=test_user.id,
-                flight_id=flight.id,
+                flight_id=flight1.id,
                 passengers=[
                     {
-                        "passenger_name": "Admin Visible",
+                        "passenger_name": "Owner",
                         "passenger_passport_num": "P55555555",
                         "seat_num": "5A",
                         "seat_class": "economy"
                     }
                 ]
             )
+            BookingService.book_tickets(
+                user_id=other_user.id,
+                flight_id=flight2.id,
+                passengers=[
+                    {
+                        "passenger_name": "Other User",
+                        "passenger_passport_num": "P66666666",
+                        "seat_num": "6A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
 
-            response = client.get("/api/bookings/?all=true", headers=admin_headers)
+            response = client.get("/api/bookings/?all=true", headers=auth_headers)
             assert response.status_code == 200
             data = response.get_json()
-            assert data["pagination"]["total_items"] >= 1
 
-            db.session.delete(flight)
+            returned_user_ids = {item["user_id"] for item in data["bookings"]}
+            assert returned_user_ids == {str(test_user.id)}
+            assert data["pagination"]["total_items"] == 1
+
+            db.session.delete(other_user)
+            db.session.delete(flight1)
+            db.session.delete(flight2)
+            db.session.commit()
+
+    def test_list_bookings_admin_returns_all_users(self, client, app, admin_headers, test_user):
+        """Admin token users can fetch bookings across users."""
+        with app.app_context():
+            flight1 = _create_test_flight(code="RT107")
+            flight2 = _create_test_flight(code="RT108")
+            db.session.add(flight1)
+            db.session.add(flight2)
+            db.session.commit()
+
+            other_user = User(
+                firstname="Other",
+                lastname="User",
+                email="other.user.admin@test.com",
+                role=Roles.user
+            )
+            db.session.add(other_user)
+            db.session.commit()
+            db.session.refresh(other_user)
+
+            BookingService.book_tickets(
+                user_id=test_user.id,
+                flight_id=flight1.id,
+                passengers=[
+                    {
+                        "passenger_name": "Admin Visible One",
+                        "passenger_passport_num": "P77777777",
+                        "seat_num": "7A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+            BookingService.book_tickets(
+                user_id=other_user.id,
+                flight_id=flight2.id,
+                passengers=[
+                    {
+                        "passenger_name": "Admin Visible Two",
+                        "passenger_passport_num": "P88888888",
+                        "seat_num": "8A",
+                        "seat_class": "economy"
+                    }
+                ]
+            )
+
+            response = client.get(
+                "/api/bookings/?page=1&per_page=10",
+                headers=admin_headers
+            )
+            assert response.status_code == 200
+            data = response.get_json()
+            returned_user_ids = {item["user_id"] for item in data["bookings"]}
+            assert str(test_user.id) in returned_user_ids
+            assert str(other_user.id) in returned_user_ids
+            assert data["pagination"]["total_items"] == 2
+
+            db.session.delete(other_user)
+            db.session.delete(flight1)
+            db.session.delete(flight2)
             db.session.commit()
 
     def test_list_bookings_invalid_pagination(self, client, auth_headers):

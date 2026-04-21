@@ -15,7 +15,10 @@ from ticket_management_system.exceptions import (
     BookingNotFoundError,
     BookingConflictError,
     UserNotFoundError,
+    InvalidTokenError
 )
+from ticket_management_system.models import Roles
+from ticket_management_system.resources.users import token_required
 
 booking_bp = Blueprint("bookings", __name__, url_prefix="/api/bookings")
 
@@ -79,18 +82,26 @@ def create_booking():
 
 
 @booking_bp.route("/", methods=["GET"])
-def list_bookings():
+@token_required("bookings:read")
+def list_bookings(token_user):
     """List bookings."""
     try:
         query_schema = PaginationQuerySchema()
         query_data = query_schema.load(request.args)
+        user_id = None if token_user.role == Roles.admin else token_user.id
 
         result = BookingService.get_paginated_bookings(
+            user_id=user_id,
             page=query_data.get("page", 1),
             per_page=query_data.get("per_page", 10)
         )
         return jsonify(result), 200
-
+    except InvalidTokenError as err:
+        return jsonify({
+            "error" : "Bad Requset",
+            "message" : "Invalid token",
+            "errors" : err.message
+        }), 400
     except ValidationError as err:
         return jsonify({
             "error": "Bad Request",
