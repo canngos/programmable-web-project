@@ -100,39 +100,42 @@ def _issue_token_for_user_id(user_id):
     response['message'] = 'Token issued successfully'
     return response
 
+#
+# Note: API deprecated (20.04.2026) by Shane
+# Use: /api/users/<user_id>/token instead
+#
+# @user_bp.route('/token', methods=['POST'])
+# def issue_token():  # pylint: disable=too-many-return-statements
+#     """Issue a scoped token for a user ID."""
+#     try:
+#         try:
+#             json_data = request.get_json()
+#         except Exception:  # pylint: disable=broad-exception-caught
+#             return jsonify({
+#                 'error': 'Bad Request',
+#                 'message': 'Request body must be valid JSON'
+#             }), 400
 
-@user_bp.route('/token', methods=['POST'])
-def issue_token():  # pylint: disable=too-many-return-statements
-    """Issue a scoped token for a user ID."""
-    try:
-        try:
-            json_data = request.get_json()
-        except Exception:  # pylint: disable=broad-exception-caught
-            return jsonify({
-                'error': 'Bad Request',
-                'message': 'Request body must be valid JSON'
-            }), 400
+#         if json_data is None:
+#             return jsonify({
+#                 'error': 'Bad Request',
+#                 'message': 'Request body must be JSON'
+#             }), 400
 
-        if json_data is None:
-            return jsonify({
-                'error': 'Bad Request',
-                'message': 'Request body must be JSON'
-            }), 400
+#         schema = UserTokenRequestSchema()
+#         validated_data = schema.load(json_data)
 
-        schema = UserTokenRequestSchema()
-        validated_data = schema.load(json_data)
+#         return jsonify(_issue_token_for_user_id(validated_data['user_id'])), 200
 
-        return jsonify(_issue_token_for_user_id(validated_data['user_id'])), 200
-
-    except ValidationError as err:
-        return handle_validation_error(err)
-    except UserNotFoundError as e:
-        return jsonify({
-            'error': 'Not Found',
-            'message': e.message
-        }), 404
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        return handle_general_error(e, rollback=False)
+#     except ValidationError as err:
+#         return handle_validation_error(err)
+#     except UserNotFoundError as e:
+#         return jsonify({
+#             'error': 'Not Found',
+#             'message': e.message
+#         }), 404
+#     except Exception as e:  # pylint: disable=broad-exception-caught
+#         return handle_general_error(e, rollback=False)
 
 
 @user_bp.route('/<uuid:user_id>/token', methods=['GET'])
