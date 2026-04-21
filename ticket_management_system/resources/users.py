@@ -62,7 +62,7 @@ def token_required(required_resource=None):
                 }), 401
 
             try:
-                current_user = UserService.verify_token(
+                token_user = UserService.verify_token(
                     token,
                     required_resource=required_resource
                 )
@@ -82,8 +82,8 @@ def token_required(required_resource=None):
                     'message': e.message
                 }), 401
 
-            response = make_response(f(current_user, *args, **kwargs))
-            return _attach_refreshed_token(response, current_user)
+            response = make_response(f(token_user, *args, **kwargs))
+            return _attach_refreshed_token(response, token_user)
 
         return decorated
 
@@ -100,42 +100,38 @@ def _issue_token_for_user_id(user_id):
     response['message'] = 'Token issued successfully'
     return response
 
-#
-# Note: API deprecated (20.04.2026) by Shane
-# Use: /api/users/<user_id>/token instead
-#
-# @user_bp.route('/token', methods=['POST'])
-# def issue_token():  # pylint: disable=too-many-return-statements
-#     """Issue a scoped token for a user ID."""
-#     try:
-#         try:
-#             json_data = request.get_json()
-#         except Exception:  # pylint: disable=broad-exception-caught
-#             return jsonify({
-#                 'error': 'Bad Request',
-#                 'message': 'Request body must be valid JSON'
-#             }), 400
+@user_bp.route('/token', methods=['POST'])
+def issue_token():  # pylint: disable=too-many-return-statements
+    """Issue a scoped token for a user ID."""
+    try:
+        try:
+            json_data = request.get_json()
+        except Exception:  # pylint: disable=broad-exception-caught
+            return jsonify({
+                'error': 'Bad Request',
+                'message': 'Request body must be valid JSON'
+            }), 400
 
-#         if json_data is None:
-#             return jsonify({
-#                 'error': 'Bad Request',
-#                 'message': 'Request body must be JSON'
-#             }), 400
+        if json_data is None:
+            return jsonify({
+                'error': 'Bad Request',
+                'message': 'Request body must be JSON'
+            }), 400
 
-#         schema = UserTokenRequestSchema()
-#         validated_data = schema.load(json_data)
+        schema = UserTokenRequestSchema()
+        validated_data = schema.load(json_data)
 
-#         return jsonify(_issue_token_for_user_id(validated_data['user_id'])), 200
+        return jsonify(_issue_token_for_user_id(validated_data['user_id'])), 200
 
-#     except ValidationError as err:
-#         return handle_validation_error(err)
-#     except UserNotFoundError as e:
-#         return jsonify({
-#             'error': 'Not Found',
-#             'message': e.message
-#         }), 404
-#     except Exception as e:  # pylint: disable=broad-exception-caught
-#         return handle_general_error(e, rollback=False)
+    except ValidationError as err:
+        return handle_validation_error(err)
+    except UserNotFoundError as e:
+        return jsonify({
+            'error': 'Not Found',
+            'message': e.message
+        }), 404
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        return handle_general_error(e, rollback=False)
 
 
 @user_bp.route('/<uuid:user_id>/token', methods=['GET'])
@@ -175,30 +171,30 @@ def login_removed():
 def admin_required(f):
     """Decorator to require admin role."""
     @wraps(f)
-    def decorated(current_user, *args, **kwargs):
-        if current_user.role != Roles.admin:
+    def decorated(token_user, *args, **kwargs):
+        if token_user.role != Roles.admin:
             return jsonify({
                 'error': 'Forbidden',
                 'message': 'Admin privileges required'
             }), 403
 
-        return f(current_user, *args, **kwargs)
+        return f(token_user, *args, **kwargs)
 
     return decorated
 
 
 @user_bp.route('/me', methods=['GET'])
 @token_required('users:read:self')
-def get_current_user(current_user):
-    """Get current user profile."""
-    response = UserService.format_user_detail(current_user)
+def get_token_user(token_user):
+    """Get token user profile."""
+    response = UserService.format_user_detail(token_user)
     return jsonify(response), 200
 
 
 @user_bp.route('/me', methods=['PATCH'])
 @token_required('users:update:self')
-def update_current_user(current_user):  # pylint: disable=too-many-return-statements
-    """Update current user profile."""
+def update_token_user(token_user):  # pylint: disable=too-many-return-statements
+    """Update token user profile."""
     try:
         # Get JSON data - handle empty body
         try:
@@ -229,7 +225,7 @@ def update_current_user(current_user):  # pylint: disable=too-many-return-statem
 
         # Update user profile
         updated_user = UserService.update_user_profile(
-            user=current_user,
+            user=token_user,
             firstname=validated_data.get('firstname'),
             lastname=validated_data.get('lastname'),
             email=validated_data.get('email')
@@ -252,7 +248,7 @@ def update_current_user(current_user):  # pylint: disable=too-many-return-statem
 @user_bp.route('/', methods=['GET'])
 @token_required('users:read:all')
 @admin_required
-def get_all_users(_current_user):
+def get_all_users(_token_user):
     """Get paginated list of all users (admin only)."""
     # Get pagination parameters from query string
     page = request.args.get('page', 1, type=int)

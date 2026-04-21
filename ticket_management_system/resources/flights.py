@@ -12,8 +12,9 @@ flight_bp = Blueprint('flights', __name__, url_prefix='/api/flights')
 
 
 @flight_bp.route('/airports', methods=['GET'])
+@token_required('flights:read')
 @cache.cached(timeout=50)
-def get_airports():
+def get_airports(_token_user):
     """Get list of available airports."""
     try:
         result = FlightService.get_available_airports()
@@ -23,7 +24,8 @@ def get_airports():
 
 
 @flight_bp.route('/search', methods=['GET'])
-def search_flights():
+@token_required('flights:read')
+def search_flights(_token_user):
     """Search flights with filters."""
     try:
         # Validate query parameters using Marshmallow schema
@@ -68,7 +70,7 @@ def search_flights():
 @flight_bp.route('/', methods=['POST'])
 @token_required('flights:write')
 @admin_required
-def add_flight(_current_user):
+def add_flight(_token_user):
     """Add a new flight (admin only)."""
     try:
         # Get and validate request body using Marshmallow schema
@@ -103,7 +105,7 @@ def add_flight(_current_user):
 
 @flight_bp.route('/<uuid:flight_id>', methods=['GET'])
 @token_required('flights:read')
-def get_flight(_current_user, flight_id):
+def get_flight(_token_user, flight_id):
     """Get a single flight by ID."""
     try:
         flight = FlightService.get_flight_by_id(flight_id)
@@ -122,7 +124,7 @@ def get_flight(_current_user, flight_id):
 @flight_bp.route('/<uuid:flight_id>', methods=['DELETE'])
 @token_required('flights:write')
 @admin_required
-def delete_flight(_current_user, flight_id):
+def delete_flight(_token_user, flight_id):
     """Delete a flight by ID."""
     try:
         # Delete flight using service
@@ -142,7 +144,7 @@ def delete_flight(_current_user, flight_id):
 @flight_bp.route('/<uuid:flight_id>', methods=['PUT'])
 @token_required('flights:write')
 @admin_required
-def update_flight(_current_user, flight_id):
+def update_flight(_token_user, flight_id):
     """Update a flight by ID (admin only)."""
     try:
         # Get and validate request body using Marshmallow schema

@@ -14,13 +14,29 @@ from ticket_management_system.exceptions import (
     SeatUnavailableError,
     BookingNotFoundError,
     BookingConflictError,
-    UserNotFoundError,
-    InvalidTokenError
+    UserNotFoundError
 )
 from ticket_management_system.models import Roles
 from ticket_management_system.resources.users import token_required
 
 booking_bp = Blueprint("bookings", __name__, url_prefix="/api/bookings")
+
+
+def _can_access_booking(token_user, booking):
+    """Return whether the token user can access the booking."""
+    if token_user.role == Roles.admin:
+        return True
+    if booking.user_id is None:
+        return False
+    return booking.user_id == token_user.id
+
+
+def _booking_forbidden_response():
+    """Return a standard booking ownership error response."""
+    return jsonify({
+        "error": "Forbidden",
+        "message": "You do not have permission to access this booking"
+    }), 403
 
 
 @booking_bp.route("/", methods=["POST"])
@@ -96,12 +112,6 @@ def list_bookings(token_user):
             per_page=query_data.get("per_page", 10)
         )
         return jsonify(result), 200
-    except InvalidTokenError as err:
-        return jsonify({
-            "error" : "Bad Requset",
-            "message" : "Invalid token",
-            "errors" : err.message
-        }), 400
     except ValidationError as err:
         return jsonify({
             "error": "Bad Request",
@@ -116,12 +126,15 @@ def list_bookings(token_user):
 
 
 @booking_bp.route("/<uuid:booking_id>", methods=["PUT"])
-def update_booking(booking_id):
+@token_required("bookings:write")
+def update_booking(token_user, booking_id):
     """Update booking status."""
     try:
         booking = BookingService.get_booking_by_id(booking_id)
         if not booking:
             raise BookingNotFoundError(booking_id)
+        if not _can_access_booking(token_user, booking):
+            return _booking_forbidden_response()
 
         schema = UpdateBookingSchema()
         data = schema.load(request.get_json())
@@ -166,12 +179,15 @@ def update_booking(booking_id):
 
 
 @booking_bp.route("/<uuid:booking_id>", methods=["DELETE"])
-def cancel_booking(booking_id):
+@token_required("bookings:write")
+def cancel_booking(token_user, booking_id):
     """Cancel a booking."""
     try:
         booking = BookingService.get_booking_by_id(booking_id)
         if not booking:
             raise BookingNotFoundError(booking_id)
+        if not _can_access_booking(token_user, booking):
+            return _booking_forbidden_response()
 
         cancelled_booking = BookingService.cancel_booking(booking_id)
 
@@ -199,12 +215,15 @@ def cancel_booking(booking_id):
 
 
 @booking_bp.route("/<uuid:booking_id>", methods=["GET"])
-def get_booking(booking_id):
+@token_required("bookings:read")
+def get_booking(token_user, booking_id):
     """Get booking details by ID."""
     try:
         booking = BookingService.get_booking_by_id(booking_id)
         if not booking:
             raise BookingNotFoundError(booking_id)
+        if not _can_access_booking(token_user, booking):
+            return _booking_forbidden_response()
 
         return jsonify(BookingService.format_booking_detail(booking)), 200
 

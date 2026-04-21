@@ -13,7 +13,7 @@ payment_bp = Blueprint('payments', __name__, url_prefix='/api/payments')
 
 @payment_bp.route('/', methods=['POST'])
 @token_required('payments:create')
-def process_payment(current_user):  # pylint: disable=too-many-return-statements
+def process_payment(token_user):  # pylint: disable=too-many-return-statements
     """
     Process payment for a booking and confirm it.
 
@@ -86,7 +86,7 @@ def process_payment(current_user):  # pylint: disable=too-many-return-statements
             }), 404
 
         # Ensure booking belongs to user
-        if booking.user_id != current_user.id:
+        if booking.user_id != token_user.id:
             return jsonify({
                 "error": "Forbidden",
                 "message": "You cannot pay for another user's booking"

@@ -899,7 +899,7 @@ class TestUpdateFlightEndpoint:
             assert response.status_code == 403
             data = response.get_json()
             assert data['error'] == 'Forbidden'
-            assert 'Admin privileges required' in data['message']
+            assert 'Token does not permit resource: flights:write' in data['message']
 
             # Cleanup
             db.session.delete(Flight.query.filter_by(id=flight_id).first())
@@ -1314,7 +1314,7 @@ class TestDeleteFlightEndpoint:
             assert response.status_code == 403
             data = response.get_json()
             assert data['error'] == 'Forbidden'
-            assert 'Admin privileges required' in data['message']
+            assert 'Token does not permit resource: flights:write' in data['message']
 
             # Verify flight still exists
             flight_still_exists = Flight.query.filter_by(id=flight_id).first()

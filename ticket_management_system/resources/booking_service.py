@@ -109,22 +109,23 @@ class BookingService:
             if user_id is None:
                 first_passenger = passengers[0]
                 email = first_passenger.get("email")
-                booking_user_id = None
-                if email:
-                    firstname, lastname = BookingService._get_passenger_names(first_passenger)
-                    existing_user = User.query.filter_by(email=email).first()
-                    if existing_user:
-                        booking_user_id = existing_user.id
-                    else:
-                        newuser = User(
-                            firstname=firstname,
-                            lastname=lastname,
-                            email=email,
-                            role=Roles.user
-                        )
-                        db.session.add(newuser)
-                        db.session.flush()
-                        booking_user_id = newuser.id
+                if not email:
+                    raise ValueError("First passenger email is required for booking ownership")
+
+                firstname, lastname = BookingService._get_passenger_names(first_passenger)
+                existing_user = User.query.filter_by(email=email).first()
+                if existing_user:
+                    booking_user_id = existing_user.id
+                else:
+                    newuser = User(
+                        firstname=firstname,
+                        lastname=lastname,
+                        email=email,
+                        role=Roles.user
+                    )
+                    db.session.add(newuser)
+                    db.session.flush()
+                    booking_user_id = newuser.id
             else:
                 booking_user_id = user_id
             booking = Booking(

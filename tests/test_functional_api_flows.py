@@ -176,6 +176,7 @@ def test_user_can_book_pay_and_observe_booking_state_changes(client, admin_heade
             "passengers": [
                 {
                     "passenger_name": "Alex Flyer",
+                    "email": test_user.email,
                     "passenger_passport_num": "PX123456",
                     "seat_num": "4A",
                     "seat_class": "economy",

@@ -29,17 +29,17 @@ def _create_test_flight(code="RT101", status=FlightStatus.active, base_price=Dec
 class TestCreateBookingEndpoint:
     """Test POST /api/bookings/ endpoint."""
 
-    def test_create_booking_success(self, client, app, auth_headers, sample_flights):
-        """Create booking with one passenger."""
+    def test_create_booking_success(self, client, app, test_user, sample_flights):
+        """Create booking with one passenger and assign by existing email."""
         with app.app_context():
             response = client.post(
                 "/api/bookings/",
-                headers=auth_headers,
                 json={
                     "flight_id": str(sample_flights[0].id),
                     "passengers": [
                         {
                             "passenger_name": "John Doe",
+                            "email": test_user.email,
                             "passenger_passport_num": "P12345678",
                             "seat_num": "12A",
                             "seat_class": "economy"
@@ -52,6 +52,7 @@ class TestCreateBookingEndpoint:
             data = response.get_json()
             assert data["message"] == "Booking created successfully"
             assert "booking" in data
+            assert data["booking"]["user_id"] == str(test_user.id)
             assert data["booking"]["flight_id"] == str(sample_flights[0].id)
             assert len(data["booking"]["tickets"]) == 1
 
@@ -78,6 +79,7 @@ class TestCreateBookingEndpoint:
                 "passengers": [
                     {
                         "passenger_name": "John Doe",
+                        "email": "missing.flight.owner@test.com",
                         "passenger_passport_num": "P12345678",
                         "seat_num": "12A",
                         "seat_class": "economy"
@@ -105,6 +107,7 @@ class TestCreateBookingEndpoint:
                     "passengers": [
                         {
                             "passenger_name": "Passenger One",
+                            "email": "passenger.one@test.com",
                             "passenger_passport_num": "P11111111",
                             "seat_num": "1A",
                             "seat_class": "economy"
@@ -122,6 +125,7 @@ class TestCreateBookingEndpoint:
                     "passengers": [
                         {
                             "passenger_name": "Passenger Two",
+                            "email": "passenger.two@test.com",
                             "passenger_passport_num": "P22222222",
                             "seat_num": "1A",
                             "seat_class": "economy"
@@ -136,8 +140,38 @@ class TestCreateBookingEndpoint:
             db.session.delete(flight)
             db.session.commit()
 
-    def test_create_booking_without_auth_success(self, client, sample_flights):
-        """Public endpoint should create anonymous booking without token."""
+    def test_create_booking_without_auth_creates_user_from_email(self, client, app, sample_flights):
+        """Unauthenticated clients can create bookings with a receipt email."""
+        owner_email = "new.booking.owner@test.com"
+        response = client.post(
+            "/api/bookings/",
+            json={
+                "flight_id": str(sample_flights[0].id),
+                "passengers": [
+                    {
+                        "passenger_name": "John Doe",
+                        "email": owner_email,
+                        "passenger_passport_num": "P12345678",
+                        "seat_num": "12A",
+                        "seat_class": "economy"
+                    }
+                ]
+            }
+        )
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data["message"] == "Booking created successfully"
+        assert data["booking"]["flight_id"] == str(sample_flights[0].id)
+        assert data["booking"]["user_id"] is not None
+
+        with app.app_context():
+            owner = User.query.filter_by(email=owner_email).first()
+            assert owner is not None
+            assert data["booking"]["user_id"] == str(owner.id)
+
+    def test_create_booking_requires_first_passenger_email(self, client, sample_flights):
+        """The first passenger email is required for booking ownership."""
         response = client.post(
             "/api/bookings/",
             json={
@@ -153,11 +187,41 @@ class TestCreateBookingEndpoint:
             }
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 400
         data = response.get_json()
-        assert data["message"] == "Booking created successfully"
-        assert data["booking"]["user_id"] is None
-        assert data["booking"]["flight_id"] == str(sample_flights[0].id)
+        assert data["error"] == "Bad Request"
+        assert "passengers" in data["errors"]
+
+    def test_create_booking_later_passenger_email_does_not_satisfy_owner_email(
+        self, client, sample_flights
+    ):
+        """Only passengers[0].email satisfies the booking owner email requirement."""
+        response = client.post(
+            "/api/bookings/",
+            json={
+                "flight_id": str(sample_flights[0].id),
+                "passengers": [
+                    {
+                        "passenger_name": "First Passenger",
+                        "passenger_passport_num": "P12345678",
+                        "seat_num": "12A",
+                        "seat_class": "economy"
+                    },
+                    {
+                        "passenger_name": "Second Passenger",
+                        "email": "second.passenger@test.com",
+                        "passenger_passport_num": "P87654321",
+                        "seat_num": "12B",
+                        "seat_class": "economy"
+                    }
+                ]
+            }
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error"] == "Bad Request"
+        assert "passengers" in data["errors"]
 
 
 class TestListBookingsEndpoint:
@@ -392,8 +456,8 @@ class TestGetBookingEndpoint:
             db.session.delete(flight)
             db.session.commit()
 
-    def test_get_booking_public_can_read_any_booking(self, client, app):
-        """Public clients can retrieve booking details by ID."""
+    def test_get_booking_forbidden_for_other_user(self, client, app, auth_headers):
+        """Regular token users cannot retrieve another user's booking."""
         with app.app_context():
             flight = _create_test_flight(code="RT107")
             db.session.add(flight)
@@ -422,12 +486,11 @@ class TestGetBookingEndpoint:
                 ]
             )
 
-            response = client.get(f"/api/bookings/{booking.id}")
+            response = client.get(f"/api/bookings/{booking.id}", headers=auth_headers)
 
-            assert response.status_code == 200
+            assert response.status_code == 403
             data = response.get_json()
-            assert data["booking"]["id"] == str(booking.id)
-            assert data["booking"]["user_id"] == str(owner.id)
+            assert data["error"] == "Forbidden"
 
             db.session.delete(owner)
             db.session.delete(flight)
@@ -468,6 +531,7 @@ class TestSeatAvailabilityEndpoint:
                     "passengers": [
                         {
                             "passenger_name": "Seat Owner",
+                            "email": "seat.owner@test.com",
                             "passenger_passport_num": "P88888888",
                             "seat_num": "9A",
                             "seat_class": "economy"
@@ -501,7 +565,7 @@ class TestSeatAvailabilityEndpoint:
         assert "errors" in data
 
     def test_seat_availability_without_auth_success(self, client, app):
-        """Availability endpoint should be public."""
+        """Availability endpoint is public."""
         with app.app_context():
             flight = _create_test_flight(code="RT109")
             db.session.add(flight)
@@ -771,8 +835,8 @@ class TestUpdateBookingEndpoint:
         data = response.get_json()
         assert data["error"] == "Not Found"
 
-    def test_update_booking_public_can_update_any_booking(self, client, app):
-        """Public clients can update booking status by ID."""
+    def test_update_booking_forbidden_for_other_user(self, client, app, auth_headers):
+        """Regular token users cannot update another user's booking."""
         with app.app_context():
             flight = _create_test_flight(code="RT117")
             db.session.add(flight)
@@ -803,13 +867,13 @@ class TestUpdateBookingEndpoint:
 
             response = client.put(
                 f"/api/bookings/{booking.id}",
+                headers=auth_headers,
                 json={"booking_status": "paid"}
             )
 
-            assert response.status_code == 200
+            assert response.status_code == 403
             data = response.get_json()
-            assert data["booking"]["booking_status"] == "paid"
-            assert data["booking"]["user_id"] == str(owner.id)
+            assert data["error"] == "Forbidden"
 
             db.session.delete(owner)
             db.session.delete(flight)
@@ -848,37 +912,14 @@ class TestUpdateBookingEndpoint:
             db.session.delete(flight)
             db.session.commit()
 
-    def test_update_booking_without_auth_success(self, client, app, test_user):
-        """Public endpoint can update booking without token."""
-        with app.app_context():
-            flight = _create_test_flight(code="RT119")
-            db.session.add(flight)
-            db.session.commit()
+    def test_update_booking_requires_auth(self, client):
+        """Updating a booking requires a bearer token."""
+        response = client.put(
+            "/api/bookings/00000000-0000-0000-0000-000000000002",
+            json={"booking_status": "paid"}
+        )
 
-            booking, _ = BookingService.book_tickets(
-                user_id=test_user.id,
-                flight_id=flight.id,
-                passengers=[
-                    {
-                        "passenger_name": "Test Passenger",
-                        "passenger_passport_num": "P18181818",
-                        "seat_num": "19A",
-                        "seat_class": "economy"
-                    }
-                ]
-            )
-
-            response = client.put(
-                f"/api/bookings/{booking.id}",
-                json={"booking_status": "paid"}
-            )
-
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data["booking"]["booking_status"] == "paid"
-
-            db.session.delete(flight)
-            db.session.commit()
+        assert response.status_code == 401
 
 
 class TestCancelBookingEndpoint:
@@ -1031,8 +1072,8 @@ class TestCancelBookingEndpoint:
         data = response.get_json()
         assert data["error"] == "Not Found"
 
-    def test_cancel_booking_public_can_cancel_any_booking(self, client, app):
-        """Public clients can cancel booking by ID."""
+    def test_cancel_booking_forbidden_for_other_user(self, client, app, auth_headers):
+        """Regular token users cannot cancel another user's booking."""
         with app.app_context():
             flight = _create_test_flight(code="RT124")
             db.session.add(flight)
@@ -1061,12 +1102,11 @@ class TestCancelBookingEndpoint:
                 ]
             )
 
-            response = client.delete(f"/api/bookings/{booking.id}")
+            response = client.delete(f"/api/bookings/{booking.id}", headers=auth_headers)
 
-            assert response.status_code == 200
+            assert response.status_code == 403
             data = response.get_json()
-            assert data["booking"]["booking_status"] == "cancelled"
-            assert data["booking"]["user_id"] == str(owner.id)
+            assert data["error"] == "Forbidden"
 
             db.session.delete(owner)
             db.session.delete(flight)
@@ -1104,34 +1144,11 @@ class TestCancelBookingEndpoint:
             db.session.delete(flight)
             db.session.commit()
 
-    def test_cancel_booking_without_auth_success(self, client, app, test_user):
-        """Public endpoint can cancel booking without token."""
-        with app.app_context():
-            flight = _create_test_flight(code="RT126")
-            db.session.add(flight)
-            db.session.commit()
+    def test_cancel_booking_requires_auth(self, client):
+        """Cancelling a booking requires a bearer token."""
+        response = client.delete("/api/bookings/00000000-0000-0000-0000-000000000003")
 
-            booking, _ = BookingService.book_tickets(
-                user_id=test_user.id,
-                flight_id=flight.id,
-                passengers=[
-                    {
-                        "passenger_name": "Test Passenger",
-                        "passenger_passport_num": "P25252525",
-                        "seat_num": "26A",
-                        "seat_class": "economy"
-                    }
-                ]
-            )
-
-            response = client.delete(f"/api/bookings/{booking.id}")
-
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data["booking"]["booking_status"] == "cancelled"
-
-            db.session.delete(flight)
-            db.session.commit()
+        assert response.status_code == 401
 
     def test_cancel_booking_updates_timestamp(self, client, app, test_user, auth_headers):
         """Cancelling a booking updates the updated_at timestamp."""
@@ -1336,6 +1353,7 @@ class TestBookingRoutesExceptionHandlers:
                         'passengers': [
                             {
                                 'passenger_name': 'John Doe',
+                                'email': 'exception.owner@test.com',
                                 'passenger_passport_num': 'P12345678',
                                 'seat_num': '12A',
                                 'seat_class': 'economy'

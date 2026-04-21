@@ -125,6 +125,30 @@ class TestBookingServiceBookTickets:
             db.session.delete(flight)
             db.session.commit()
 
+    def test_book_tickets_requires_email_when_no_user_id(self, app):
+        """Anonymous service bookings require first passenger email for ownership."""
+        with app.app_context():
+            flight = _create_flight(code="BK113")
+            db.session.add(flight)
+            db.session.commit()
+
+            with pytest.raises(ValueError, match="First passenger email is required"):
+                BookingService.book_tickets(
+                    user_id=None,
+                    flight_id=flight.id,
+                    passengers=[
+                        {
+                            "passenger_name": "No Email",
+                            "passenger_passport_num": "N12345678",
+                            "seat_num": "2A",
+                            "seat_class": "economy"
+                        }
+                    ]
+                )
+
+            db.session.delete(flight)
+            db.session.commit()
+
     def test_book_tickets_flight_not_found(self, app, booking_user):
         """Raise FlightNotFoundError for non-existent flight."""
         with app.app_context():

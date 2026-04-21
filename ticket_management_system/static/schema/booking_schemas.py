@@ -53,6 +53,23 @@ class BookTicketsSchema(Schema):
         validate=validate.Length(min=1, max=10),
     )
 
+    @validates_schema
+    def validate_first_passenger_email(self, data, **_kwargs):
+        """Require owner/receipt email on the first passenger."""
+        passengers = data.get("passengers") or []
+        if not passengers:
+            return
+
+        first_email = passengers[0].get("email")
+        if not first_email:
+            raise ValidationError({
+                "passengers": {
+                    0: {
+                        "email": ["First passenger email is required for booking ownership."]
+                    }
+                }
+            })
+
 
 class PaginationQuerySchema(Schema):
     """Schema for pagination query parameters."""
