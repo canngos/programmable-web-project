@@ -194,6 +194,11 @@ definitions:
         format: uuid
       passenger_name:
         type: string
+        description: Legacy full name assembled from passenger_fname and passenger_lname.
+      passenger_fname:
+        type: string
+      passenger_lname:
+        type: string
       passenger_passport_num:
         type: string
       seat_num:
@@ -926,11 +931,17 @@ paths:
               items:
                 type: object
                 required:
-                - passenger_name
+                - passenger_fname
+                - passenger_lname
                 - passenger_passport_num
                 - seat_num
                 properties:
                   passenger_name:
+                    type: string
+                    description: Legacy alternative to passenger_fname/passenger_lname.
+                  passenger_fname:
+                    type: string
+                  passenger_lname:
                     type: string
                   passenger_passport_num:
                     type: string

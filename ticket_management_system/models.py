@@ -113,3 +113,15 @@ class Ticket(db.Model):
 
     flight = db.relationship("Flight", back_populates="tickets")
     booking = db.relationship("Booking", back_populates="tickets")
+
+    @property
+    def passenger_name(self):
+        """Return the passenger's full name for legacy callers."""
+        return f"{self.passenger_fname} {self.passenger_lname}".strip()
+
+    @passenger_name.setter
+    def passenger_name(self, value):
+        """Split a legacy full passenger name into first and last name fields."""
+        name_parts = value.strip().split(maxsplit=1) if isinstance(value, str) else []
+        self.passenger_fname = name_parts[0] if name_parts else ""
+        self.passenger_lname = name_parts[1] if len(name_parts) > 1 else ""

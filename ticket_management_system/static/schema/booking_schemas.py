@@ -1,12 +1,13 @@
 """Validation schemas for booking endpoints."""
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, ValidationError, fields, validate, validates_schema
 
 
 class PassengerSchema(Schema):
     """Schema for passenger validation."""
-    passenger_fname = fields.Str(required=True, validate=validate.Length(min=1, max=50))
-    passenger_lname = fields.Str(required=True, validate=validate.Length(min=1, max=50))
-    email = email = fields.Email(
+    passenger_name = fields.Str(required=False, validate=validate.Length(min=1, max=101))
+    passenger_fname = fields.Str(required=False, validate=validate.Length(min=1, max=50))
+    passenger_lname = fields.Str(required=False, validate=validate.Length(min=1, max=50))
+    email = fields.Email(
         required=False,
         allow_none=False,
         validate=validate.Length(max=255, error='email must be 255 characters or less')
@@ -18,6 +19,23 @@ class PassengerSchema(Schema):
         load_default="economy",
         validate=validate.OneOf(["economy", "business", "first"]),
     )
+
+    @validates_schema
+    def validate_passenger_name(self, data, **_kwargs):
+        """Require either split passenger names or a legacy full passenger name."""
+        has_legacy_name = bool(data.get("passenger_name"))
+        has_first_name = bool(data.get("passenger_fname"))
+        has_last_name = bool(data.get("passenger_lname"))
+
+        if has_first_name and has_last_name:
+            return
+        if has_legacy_name and not (has_first_name or has_last_name):
+            return
+
+        raise ValidationError({
+            "passenger_fname": ["passenger_fname and passenger_lname are required together."],
+            "passenger_lname": ["passenger_fname and passenger_lname are required together."]
+        })
 
 
 class BookTicketsSchema(Schema):

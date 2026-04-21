@@ -219,7 +219,8 @@ def create_bookings_and_tickets(users, flights):
 
                 ticket = Ticket(
                     booking_id=booking.id,
-                    passenger_name=f"{passenger_firstname} {passenger_lastname}",
+                    passenger_fname=passenger_firstname,
+                    passenger_lname=passenger_lastname,
                     passenger_passport_num=passport_num,
                     seat_num=seat_num,
                     flight_id=flight.id,
